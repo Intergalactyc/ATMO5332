@@ -61,7 +61,7 @@ class Solution:
             return int((frame_number / (frames - 1)) * (len(self.t) - 1)) if frames > 1 else 0
 
         def get_text(idx):
-            return f"t={self.t[idx]:.2g} s\nQ_max={self.Q[:, idx].max():.5g}\nQ_tot={self.Q_tot[idx]:.11g}"
+            return f"t={self.t[idx]:.4g} s\nQ_max={self.Q[:, idx].max():.5g}\nQ_tot={self.Q_tot[idx]:.11g}"
         
         fig, ax = plt.subplots()
         y0 = self.Q[:, 0]
@@ -98,11 +98,15 @@ class Solution:
         else:
             plt.show()
 
-    def plot_final_solution(self, saveto: str|None=None):
+    def plot_final_solution(self, saveto: str|None=None, use_initial_limits: bool=True):
         fig, ax = plt.subplots()
         y = self.Q[:, -1]
+        ylims = (y.min(), y.max())
+        if use_initial_limits:
+            y0 = self.Q[:, 0]
+            ylims = (y0.min(), y0.max())
         ax.plot(self.x, y)
-        ax.set(xlim=(self.x.min(), self.x.max()), ylim=(y.min(), y.max()), xlabel="x (m)", ylabel="Q (g/kg)")
+        ax.set(xlim=(self.x.min(), self.x.max()), ylim=ylims, xlabel="x (m)", ylabel="Q (g/kg)")
         fig.suptitle(f"Final solution (t = {self.t.max()} s): dx = {self.dx:.2g} m, dt = {self.dt:.2g} s\nQ_max={y.max():.5g}, Q_tot={self.Q_tot[-1]:.11g}")
 
         if saveto:
