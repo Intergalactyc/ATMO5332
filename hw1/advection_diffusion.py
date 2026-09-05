@@ -27,8 +27,8 @@ _m = _domain_size / 2.
 _t0 = 0.
 _tf = 4.
 
-_FPS = 30
-_SPEED = 0.1
+_FPS = 60
+_SPEED = 0.2
 
 output_path = pathlib.Path(__file__).parent / "results"
 os.makedirs(output_path, exist_ok=True)
@@ -44,6 +44,11 @@ class Solution:
     x: npt.ArrayLike
     t: npt.ArrayLike
 
+    def __post_init__(self):
+        self.dx = self.x[1]-self.x[0]
+        self.dt = self.t[1]-self.t[0]
+        self.Q_tot = np.sum(self.Q, axis=0) * self.dx
+
     def animate_solution(self, saveto: str|None=None, fps: int=_FPS, speed: float=_SPEED):
         # Logic to maintain given framerate with real-time factor
         interval = max(int(1000/fps), 10)
@@ -56,16 +61,21 @@ class Solution:
             return int((frame_number / (frames - 1)) * (len(self.t) - 1)) if frames > 1 else 0
 
         def get_text(idx):
-            return f"t={self.t[idx]:.3f}"
+            return f"t={self.t[idx]:.2g} s\nQ_max={self.Q[:, idx].max():.5g}\nQ_tot={self.Q_tot[idx]:.11g}"
         
         fig, ax = plt.subplots()
-        line = ax.plot(self.x, self.Q[:, 0])[0]
+        y0 = self.Q[:, 0]
+        line = ax.plot(self.x, y0)[0]
         label = ax.text(1, 1, get_text(0), horizontalalignment="right", verticalalignment="bottom", transform=ax.transAxes)
-        ax.set(xlim=(self.x.min(), self.x.max()), ylim=(self.Q.min(), self.Q.max()), xlabel="x (m)", ylabel="Q (g/kg)")
+        ylim0_bot, ylim0_top = y0.min(), y0.max()
+        ax.set(xlim=(self.x.min(), self.x.max()), ylim=(ylim0_bot, ylim0_top), xlabel="x (m)", ylabel="Q (g/kg)")
+        fig.suptitle(f"Solution: dx = {self.dx:.2g} m, dt = {self.dt:.2g} s")
 
         def update(frame_number):
             idx = get_idx(frame_number)
-            line.set_ydata(self.Q[:, idx])
+            y = self.Q[:, idx]
+            ax.set_ylim(min(ylim0_bot, y.min()), max(ylim0_top, y.max()))
+            line.set_ydata(y)
             label.set(text=get_text(idx))
             return (line, label)
         
@@ -77,14 +87,24 @@ class Solution:
             plt.show()
 
     def plot_initial_condition(self, saveto: str|None=None):
-        plt.plot(self.x, self.Q[:, 0])
+        fig, ax = plt.subplots()
+        y = self.Q[:, 0]
+        ax.plot(self.x, y)
+        ax.set(xlim=(self.x.min(), self.x.max()), ylim=(y.min(), y.max()), xlabel="x (m)", ylabel="Q (g/kg)")
+        fig.suptitle(f"Initial conditions: dx = {self.dx:.2g} m\nQ_max={y.max():.5g}, Q_tot={self.Q_tot[-1]:.11g}")
+
         if saveto:
             plt.savefig(output_path / saveto)
         else:
             plt.show()
 
     def plot_final_solution(self, saveto: str|None=None):
-        plt.plot(self.x, self.Q[:, -1])
+        fig, ax = plt.subplots()
+        y = self.Q[:, -1]
+        ax.plot(self.x, y)
+        ax.set(xlim=(self.x.min(), self.x.max()), ylim=(y.min(), y.max()), xlabel="x (m)", ylabel="Q (g/kg)")
+        fig.suptitle(f"Final solution (t = {self.t.max()} s): dx = {self.dx:.2g} m, dt = {self.dt:.2g} s\nQ_max={y.max():.5g}, Q_tot={self.Q_tot[-1]:.11g}")
+
         if saveto:
             plt.savefig(output_path / saveto)
         else:
@@ -114,22 +134,22 @@ class AdvectionDiffusionSystem:
         self.u = u
 
     def solve(self, dx: float, dt: float, t0: float=_t0, tf: float=_tf) -> Solution:
-        x = np.arange(0., 200.+dx, dx)
-        t = np.arange(t0, tf+dt, dt)
+        x = np.arange(0., self.domain_size+dx, dx)
+        t = np.arange(t0, tf+dt/2, dt) # end is exclusive, so tf+epsilon (epsilon<=dt) gives us the whole range; using epsilon=dt/2 to avoid floating-point issue
 
         Nx = x.shape[0]
         Nt = t.shape[0]
 
         Q = np.zeros((Nx, Nt))
 
-        Q[:, 0] = initial_condition(x)
+        Q[:, 0] = self.initial_condition(x)
 
         for n in range(Nt-1):
             for i in range(Nx):
-                Q_prev = Q[i, n-1] if n > 0 else Q[i, n] # to handle first time step
-                Q[i, n+1] = Q_prev + dt * (
+                Q_prev, dt_factor = (Q[i, n-1], 2*dt) if n > 0 else (Q[i, n], dt) # handle first time step correctly
+                Q[i, n+1] = Q_prev + dt_factor * (
                     self.k * dx2_cd_2o(Q[:, n], i, dx) # diffusion term
-                    + self.u * dx_cd_2o(Q[:, n], i, dx) # advection term
+                    - self.u * dx_cd_2o(Q[:, n], i, dx) # advection term
                 )
 
         return Solution(Q=Q, x=x, t=t)
@@ -142,19 +162,21 @@ if __name__ == "__main__":
     sol1 = system.solve(dx=4., dt=0.01)
     sol1.plot_initial_condition("sol1initial.png")
     sol1.plot_final_solution("sol1final.png")
-    sol1.animate_solution("sol1.gif")
+    sol1.animate_solution("sol1.mp4")
 
     # dx = 6 m, dt = 0.01 s
     sol2 = system.solve(dx=6., dt=0.01)
+    sol1.plot_initial_condition("sol2initial.png")
     sol2.plot_final_solution("sol2final.png")
-    sol2.animate_solution("sol2.gif")
+    sol2.animate_solution("sol2.mp4")
 
     # dx = 2 m, dt = 0.01 s
     sol3 = system.solve(dx=2., dt=0.01)
+    sol1.plot_initial_condition("sol3initial.png")
     sol3.plot_final_solution("sol3final.png")
-    sol3.animate_solution("sol3.gif")
+    sol3.animate_solution("sol3.mp4")
 
     # try other combinations
     sol4 = system.solve(dx=2., dt=0.001)
     sol4.plot_final_solution("sol4final.png")
-    sol4.animate_solution("sol4.gif")
+    sol4.animate_solution("sol4.mp4")
