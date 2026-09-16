@@ -64,18 +64,21 @@ class Solution:
             return f"t={self.t[idx]:.4g} s\nQ_max={self.Q[:, idx].max():.5g}\nQ_tot={self.Q_tot[idx]:.11g}"
         
         fig, ax = plt.subplots()
+        x_plot = np.append(self.x, self.x[-1] + self.dx) # pad right boundary x value
         y0 = self.Q[:, 0]
-        line = ax.plot(self.x, y0)[0]
+        y0_plot = np.append(y0, y0[0]) # pad right boundary y0 data 
+        line = ax.plot(x_plot, y0_plot)[0]
         label = ax.text(1, 1, get_text(0), horizontalalignment="right", verticalalignment="bottom", transform=ax.transAxes)
         ylim0_bot, ylim0_top = y0.min(), y0.max()
-        ax.set(xlim=(self.x.min(), self.x.max()), ylim=(ylim0_bot, ylim0_top), xlabel="x (m)", ylabel="Q (g/kg)")
+        ax.set(xlim=(x_plot.min(), x_plot.max()), ylim=(ylim0_bot, ylim0_top), xlabel="x (m)", ylabel="Q (g/kg)")
         fig.suptitle(f"Solution: dx = {self.dx:.2g} m, dt = {self.dt:.2g} s")
 
         def update(frame_number):
             idx = get_idx(frame_number)
             y = self.Q[:, idx]
+            y_plot = np.append(y, y[0]) # pad right boundary y[i] data
             ax.set_ylim(min(ylim0_bot, y.min()), max(ylim0_top, y.max()))
-            line.set_ydata(y)
+            line.set_ydata(y_plot)
             label.set(text=get_text(idx))
             return (line, label)
         
@@ -88,9 +91,11 @@ class Solution:
 
     def plot_initial_condition(self, saveto: str|None=None):
         fig, ax = plt.subplots()
+        x_plot = np.append(self.x, self.x[-1] + self.dx) # pad right boundary x value
         y = self.Q[:, 0]
-        ax.plot(self.x, y)
-        ax.set(xlim=(self.x.min(), self.x.max()), ylim=(y.min(), y.max()), xlabel="x (m)", ylabel="Q (g/kg)")
+        y_plot = np.append(y, y[0]) # pad right boundary y data
+        ax.plot(x_plot, y_plot)
+        ax.set(xlim=(x_plot.min(), x_plot.max()), ylim=(y.min(), y.max()), xlabel="x (m)", ylabel="Q (g/kg)")
         fig.suptitle(f"Initial conditions: dx = {self.dx:.2g} m\nQ_max={y.max():.5g}, Q_tot={self.Q_tot[-1]:.11g}")
 
         if saveto:
@@ -100,13 +105,15 @@ class Solution:
 
     def plot_final_solution(self, saveto: str|None=None, use_initial_limits: bool=True):
         fig, ax = plt.subplots()
+        x_plot = np.append(self.x, self.x[-1] + self.dx) # pad right boundary x value
         y = self.Q[:, -1]
+        y_plot = np.append(y, y[0]) # pad right boundary y data
         ylims = (y.min(), y.max())
         if use_initial_limits:
             y0 = self.Q[:, 0]
             ylims = (y0.min(), y0.max())
-        ax.plot(self.x, y)
-        ax.set(xlim=(self.x.min(), self.x.max()), ylim=ylims, xlabel="x (m)", ylabel="Q (g/kg)")
+        ax.plot(x_plot, y_plot)
+        ax.set(xlim=(x_plot.min(), x_plot.max()), ylim=ylims, xlabel="x (m)", ylabel="Q (g/kg)")
         fig.suptitle(f"Final solution (t = {self.t.max()} s): dx = {self.dx:.2g} m, dt = {self.dt:.2g} s\nQ_max={y.max():.5g}, Q_tot={self.Q_tot[-1]:.11g}")
 
         if saveto:
@@ -136,7 +143,7 @@ class AdvectionDiffusionSystem:
         self.u = u
 
     def solve(self, dx: float, dt: float, t0: float=_t0, tf: float=_tf) -> Solution:
-        x = np.arange(0., self.domain_size+dx, dx)
+        x = np.arange(0., self.domain_size, dx)
         t = np.arange(t0, tf+dt/2, dt) # end is exclusive, so tf+epsilon (epsilon<=dt) gives us the whole range; using epsilon=dt/2 to avoid floating-point issue
 
         Nx = x.shape[0]
