@@ -114,30 +114,6 @@ class Solution:
         else:
             plt.show()
 
-# def dx_cd_2o(Q, i, dx):
-#     # First derivative, 2nd order central difference; 2nd order forward/backward difference at left/right edge
-#     if i == 0: # left edge -> FD
-#         return (-3*Q[i] + 4*Q[i+1] - Q[i+2])/(2*dx)
-#     if i == len(Q)-1: # right edge -> BD
-#         return (3*Q[i] - 4*Q[i-1] + Q[i-2])/(2*dx)
-#     return (Q[i+1] - Q[i-1])/(2*dx)
-
-# def dx2_cd_2o(Q, i, dx):
-#     # Second derivative, 2nd order central difference; 1st order forward/backward difference at left/right edge
-#     if i == 0: # left edge -> FD
-#         return (Q[i+2] - 2*Q[i+1] + Q[i])/(dx*dx)
-#     if i == len(Q)-1: # right edge -> BD
-#         return (Q[i] - 2*Q[i-1] + Q[i-2])/(dx*dx)
-#     return (Q[i+1] - 2*Q[i] + Q[i-1])/(dx*dx)
-
-# def dx_cd_2o(Q, i, dx):
-#     # First derivative, 2nd order central difference (periodic boundary conditions)
-#     return (Q[(i+1)%len(Q)] - Q[i-1])/(2*dx)
-
-# def dx2_cd_2o(Q, i, dx):
-#     # Second derivative, 2nd order central difference (periodic boundary conditions)
-#     return (Q[(i+1)%len(Q)] - 2*Q[i] + Q[i-1])/(dx*dx)
-
 def dx_cd_2o_vectorized(Q, dx):
     # First derivative, 2nd order central difference, periodic boundary conditions
     # Vectorized to apply to entire array at once
@@ -177,13 +153,6 @@ class AdvectionDiffusionSystem:
                 - self.u * dx_cd_2o_vectorized(Q[:, n], dx)
             )
 
-            # Pre-vectorization version
-            # for i in range(Nx):
-            #     Q[i, n+1] = Q_prev + dt_factor * (
-            #         self.k * dx2_cd_2o(Q[:, n], i, dx) # diffusion term
-            #         - self.u * dx_cd_2o(Q[:, n], i, dx) # advection term
-            #     )
-
         return Solution(Q=Q, x=x, t=t)
 
 if __name__ == "__main__":
@@ -198,13 +167,13 @@ if __name__ == "__main__":
 
     # dx = 6 m, dt = 0.01 s
     sol2 = system.solve(dx=6., dt=0.01)
-    sol1.plot_initial_condition("sol2initial.png")
+    sol2.plot_initial_condition("sol2initial.png")
     sol2.plot_final_solution("sol2final.png")
     sol2.animate_solution("sol2.mp4")
 
     # dx = 2 m, dt = 0.01 s
     sol3 = system.solve(dx=2., dt=0.01)
-    sol1.plot_initial_condition("sol3initial.png")
+    sol3.plot_initial_condition("sol3initial.png")
     sol3.plot_final_solution("sol3final.png")
     sol3.animate_solution("sol3.mp4")
 
