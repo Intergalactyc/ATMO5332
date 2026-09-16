@@ -3,7 +3,7 @@ For problem 2b
 Use leap frog time stepping scheme w/2nd order spatial center differencing to solve given-velocity 1d advection-diffusion
     Q_t = k*Q_xx - u*Q_x, k and u given
     First time step is handled with Forward Euler (by using IC value for first step "previous" value)
-    Grid edges are handled with forward (backward) differencing at the left (right) boundaries
+    Periodic boundary conditions are imposed on grid edges.
 Gaussian initial condition centered in grid
 Units: Q (concentration) in g/kg, k (diffusivity) in m^2/s, u (velocity) in m/s, m (Gaussian IC mean) in m, v (Gaussian IC variance) in m^2
 """
@@ -114,21 +114,43 @@ class Solution:
         else:
             plt.show()
 
-def dx_cd_2o(Q, i, dx):
-    # First derivative, 2nd order central difference; 2nd order forward/backward difference at left/right edge
-    if i == 0: # left edge -> FD
-        return (-3*Q[i] + 4*Q[i+1] - Q[i+2])/(2*dx)
-    if i == len(Q)-1: # right edge -> BD
-        return (3*Q[i] - 4*Q[i-1] + Q[i-2])/(2*dx)
-    return (Q[i+1] - Q[i-1])/(2*dx)
+# def dx_cd_2o(Q, i, dx):
+#     # First derivative, 2nd order central difference; 2nd order forward/backward difference at left/right edge
+#     if i == 0: # left edge -> FD
+#         return (-3*Q[i] + 4*Q[i+1] - Q[i+2])/(2*dx)
+#     if i == len(Q)-1: # right edge -> BD
+#         return (3*Q[i] - 4*Q[i-1] + Q[i-2])/(2*dx)
+#     return (Q[i+1] - Q[i-1])/(2*dx)
 
-def dx2_cd_2o(Q, i, dx):
-    # Second derivative, 2nd order central difference; 1st order forward/backward difference at left/right edge
-    if i == 0: # left edge -> FD
-        return (Q[i+2] - 2*Q[i+1] + Q[i])/(dx*dx)
-    if i == len(Q)-1: # right edge -> BD
-        return (Q[i] - 2*Q[i-1] + Q[i-2])/(dx*dx)
-    return (Q[i+1] - 2*Q[i] + Q[i-1])/(dx*dx)
+# def dx2_cd_2o(Q, i, dx):
+#     # Second derivative, 2nd order central difference; 1st order forward/backward difference at left/right edge
+#     if i == 0: # left edge -> FD
+#         return (Q[i+2] - 2*Q[i+1] + Q[i])/(dx*dx)
+#     if i == len(Q)-1: # right edge -> BD
+#         return (Q[i] - 2*Q[i-1] + Q[i-2])/(dx*dx)
+#     return (Q[i+1] - 2*Q[i] + Q[i-1])/(dx*dx)
+
+# def dx_cd_2o(Q, i, dx):
+#     # First derivative, 2nd order central difference (periodic boundary conditions)
+#     return (Q[(i+1)%len(Q)] - Q[i-1])/(2*dx)
+
+# def dx2_cd_2o(Q, i, dx):
+#     # Second derivative, 2nd order central difference (periodic boundary conditions)
+#     return (Q[(i+1)%len(Q)] - 2*Q[i] + Q[i-1])/(dx*dx)
+
+def dx_cd_2o_vectorized(Q, dx):
+    # First derivative, 2nd order central difference, periodic boundary conditions
+    # Vectorized to apply to entire array at once
+    Q_left = np.roll(Q, 1) # Q_{i-1}
+    Q_right = np.roll(Q, -1) # Q_{i+1}
+    return (Q_right - Q_left)/(2*dx) 
+
+def dx2_cd_2o_vectorized(Q, dx):
+    # Second derivative, 2nd order central difference, periodic boundary conditions
+    # Vectorized to apply to entire array at once
+    Q_left = np.roll(Q, 1) # Q_{i-1}
+    Q_right = np.roll(Q, -1) # Q_{i+1}
+    return (Q_right - 2*Q + Q_left)/(dx*dx) 
 
 class AdvectionDiffusionSystem:
     def __init__(self, initial_condition: Callable, domain_size: float=_domain_size, k: float=_k, u: float=_u):
@@ -149,12 +171,18 @@ class AdvectionDiffusionSystem:
         Q[:, 0] = self.initial_condition(x)
 
         for n in range(Nt-1):
-            for i in range(Nx):
-                Q_prev, dt_factor = (Q[i, n-1], 2*dt) if n > 0 else (Q[i, n], dt) # handle first time step correctly
-                Q[i, n+1] = Q_prev + dt_factor * (
-                    self.k * dx2_cd_2o(Q[:, n], i, dx) # diffusion term
-                    - self.u * dx_cd_2o(Q[:, n], i, dx) # advection term
-                )
+            Q_prev, dt_factor = (Q[:, n-1], 2*dt) if n > 0 else (Q[:, n], dt) # handle first time step correctly
+            Q[:, n+1] = Q_prev + dt_factor * (
+                self.k * dx2_cd_2o_vectorized(Q[:, n], dx) # diffusion term
+                - self.u * dx_cd_2o_vectorized(Q[:, n], dx)
+            )
+
+            # Pre-vectorization version
+            # for i in range(Nx):
+            #     Q[i, n+1] = Q_prev + dt_factor * (
+            #         self.k * dx2_cd_2o(Q[:, n], i, dx) # diffusion term
+            #         - self.u * dx_cd_2o(Q[:, n], i, dx) # advection term
+            #     )
 
         return Solution(Q=Q, x=x, t=t)
 
