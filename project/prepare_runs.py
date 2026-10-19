@@ -20,11 +20,11 @@ Station lists can be either:
       4 letter ID is used as the prefix and Location as the name
 
 Usage examples:
-    python prepare_runs.py ../runs                                  (all events, core schemes)
-    python prepare_runs.py ../runs --events 20131210 20140125 --schemes ysu mynn acm2 myj
-    python prepare_runs.py ../runs_test --events 20131210 --schemes ysu --run-hours 3
-    python prepare_runs.py ../runs --wrf-run /lustre/work/USER/WRFV4/run --met-em /lustre/work/USER/pbl/wps/{event}
-    python prepare_runs.py ../runs --bounds 32.5 34.5 -103.0 -101.0 --stationinfo stationinfo.xls
+    python prepare_runs.py ./runs                                  (all events, core schemes)
+    python prepare_runs.py ./runs --events 20131210 20140125 --schemes ysu mynn acm2 myj
+    python prepare_runs.py ./runs_test --events 20131210 --schemes ysu --run-hours 3
+    python prepare_runs.py ./runs --wrf-run /lustre/work/USER/WRFV4/run --met-em /lustre/work/USER/pbl/wps/{event}
+    python prepare_runs.py ./runs --bounds 32.5 34.5 -103.0 -101.0 --stationinfo stationinfo.xls
 
 Nothing is written unless every run directory can be prepared without errors. Existing files are only replaced
 with --force; files that aren't created here (e.g. WRF output from an earlier run) are never touched.
