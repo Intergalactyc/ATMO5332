@@ -1,9 +1,9 @@
 &share
  wrf_core             = 'ARW'
  max_dom              = 3
- start_date           = '2026-09-01_03:00:00', '2026-09-01_03:00:00', '2026-09-01_03:00:00'
- end_date             = '2026-09-01_18:00:00', '2026-09-01_18:00:00', '2026-09-01_18:00:00'
- interval_seconds     = 21600
+ start_date           = '2013-12-09_18:00:00', '2013-12-09_18:00:00', '2013-12-09_18:00:00'
+ end_date             = '2013-12-10_18:00:00', '2013-12-09_18:00:00', '2013-12-09_18:00:00'
+ interval_seconds     = 3600
  io_form_geogrid      = 2
  debug_level          = 0
 /
@@ -26,7 +26,7 @@
  pole_lat             = 90
  pole_lon             = 0
  stand_lon            = -102.050
- geog_data_path       = 'geog'
+ geog_data_path       = '/lustre/research/bancell/geogV4/WPS_GEOG'
  opt_geogrid_tbl_path = './geogrid/'
 /
 
