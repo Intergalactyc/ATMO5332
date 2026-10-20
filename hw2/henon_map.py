@@ -60,6 +60,7 @@ def questions2and3():
     for _ in range(14):
         dx, dy = henon_tlm(x, y, dx, dy)
         x, y = henon_map(x, y)
+        print(x, y)
         xp, yp = henon_map(xp, yp)
     print("\n--- Question 2 ---")
     print(f"Propagated (dx, dy) = ({dx:.3f}, {dy:.3f})")
