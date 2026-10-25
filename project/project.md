@@ -24,7 +24,7 @@ Submit WPS runs: Geogrid, Ungrib, Metgrid. This submits jobs to the slurm queue,
 `python submit.py wps ./wps`
 - If Geogrid has already been run, you can add `--skip-geogrid`
 - To see the sbatch commands but not run anything, use `--dry-run`
-- Once submit has been run, use `squeue -u USER` to see your jobs in the slurm queue
+- Once submit has been run, use `squeue -u USER` to see your jobs in the slurm queue. If a job needs to be canceled, use `scancel JOBID`.
 
 Prepare for WRF runs -- creates directory `../runs` with subdirectories for each run (event + scheme combination, containing namelist.input, links to executables, tslist, and iofields.txt); replace `USER` with username and change locations as necessary; `{event}` will be replaced by the script with each respective event path, per run:
 `python prepare_runs.py ./runs --wrf-run /lustre/work/USER/WRFV4/run --met-em ./wps/{event}`
@@ -34,4 +34,4 @@ Submit WRF runs: Real + WRF. This submits jobs to the slurm queue, by calling sb
 `python submit.py wrf ./runs`
 - For the test run: `python submit.py wrf ./testruns`
 - To see the sbatch commands but not run anything, use `--dry-run`
-- Once submit has been run, use `squeue -u USER` to see your jobs in the slurm queue
+- Once submit has been run, use `squeue -u USER` to see your jobs in the slurm queue. If a job needs to be canceled, use `scancel JOBID`.
