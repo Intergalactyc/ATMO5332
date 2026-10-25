@@ -12,6 +12,7 @@ The run length is taken from configs/namelist.input.template, so WPS covers the 
 Usage examples:
     python prepare_wps.py ./wps --wps /lustre/work/USER/WPSV4                  (all events)
     python prepare_wps.py ./wps --wps /lustre/work/USER/WPSV4 --events 20131210 --era5 /lustre/work/USER/era5
+    python prepare_wps.py ./wps --wps /lustre/work/USER/WPSV4 --geog-data-path /lustre/work/USER/WPS_GEOG
 
 Existing directories are only updated with --force, which replaces the files and links made here and leaves
 anything else (e.g. geo_em or met_em output) alone.
@@ -56,6 +57,8 @@ def parse_args():
                         help="directory with the <event>/*.grib files from era5.py (default: %(default)s)")
     parser.add_argument("--events", nargs="+", type=event_date, default=EVENTS, metavar="YYYYMMDD",
                         help=f"event (morning) dates (default: all {len(EVENTS)})")
+    parser.add_argument("--geog-data-path", metavar="DIR",
+                        help="static geographic data directory for geogrid (default: geog_data_path in the template)")
     parser.add_argument("--force", action="store_true", help="update existing directories")
     return parser.parse_args()
 
@@ -63,6 +66,8 @@ def parse_args():
 def main():
     args = parse_args()
     template = WPS_TEMPLATE.read_text().splitlines()
+    if args.geog_data_path:
+        set_value(template, "geogrid", "geog_data_path", f"'{args.geog_data_path}'")
     run_hours = get_int(TEMPLATE.read_text().splitlines(), "time_control", "run_hours")
 
     missing = [name for name in ("geogrid.exe", "ungrib.exe", "metgrid.exe", "geogrid", "metgrid", VTABLE)
