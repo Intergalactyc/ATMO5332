@@ -1,16 +1,16 @@
 #!/bin/bash
 #SBATCH -J wrf
-#SBATCH -o %x-%j.out
-#SBATCH -e %x-%j.err
+#SBATCH -o %x-%j.log
 #SBATCH -p nocona
 #SBATCH -N 1
 #SBATCH --ntasks-per-node=128
 #SBATCH -t 24:00:00
 
-# Usage: sbatch -J wrf_EVENT_SCHEME real_wrf.sh RUNS_DIR/EVENT_SCHEME     (directory made by prepare_runs.py)
-# Runs real.exe, then wrf.exe if real succeeded. real's rsl logs are moved to real_logs/.
+# Usage: sbatch -D RUNS_DIR/EVENT_SCHEME real_wrf.sh     (runs in the directory made by prepare_runs.py; see submit.py)
+# Runs real.exe, then wrf.exe if real succeeded; real's rsl logs are moved to real_logs/.
+# Slurm's output goes to <jobname>-<jobid>.log there.
 
-cd "${1:?usage: sbatch real_wrf.sh RUNS_DIR/EVENT_SCHEME}" || exit 1
+rm -rf rsl.* real_logs  # logs from an earlier run
 
 module load gcc/14.2.0 openmpi/5.0.5 wrf/4.5.2-mpi netcdf-fortran/4.6.1-mpi netcdf-c/4.9.2-mpi
 
