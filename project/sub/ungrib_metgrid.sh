@@ -16,14 +16,14 @@ spack load wps
 
 ./ungrib.exe
 
-if ! grep -q "Successful completion of ungrib" ungrib.log; then
+if ! grep -q "Successful completion of program ungrib.exe" ungrib.log; then
     echo "ungrib failed; see $PWD/ungrib.log"
     exit 1
 fi
 
 mpirun -np 48 ./metgrid.exe
 
-if ! grep -q "Successful completion of metgrid" metgrid.log*; then
+if ! grep -q "Successful completion of program metgrid.exe" metgrid.log*; then
     echo "metgrid failed; see $PWD/metgrid.log*"
     exit 1
 fi

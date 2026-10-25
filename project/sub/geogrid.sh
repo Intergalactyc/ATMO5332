@@ -16,7 +16,7 @@ spack load wps
 
 mpirun -np 32 ./geogrid.exe
 
-if ! grep -q "Successful completion of geogrid" geogrid.log*; then
+if ! grep -q "Successful completion of program geogrid.exe" geogrid.log*; then
     echo "geogrid failed; see $PWD/geogrid.log*"
     exit 1
 fi
