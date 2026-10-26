@@ -4,7 +4,7 @@
 #SBATCH -p nocona
 #SBATCH -N 1
 #SBATCH --ntasks-per-node=128
-#SBATCH -t 24:00:00
+#SBATCH -t 12:00:00
 
 # Usage: sbatch -D RUNS_DIR/EVENT_SCHEME real_wrf.sh     (runs in the directory made by prepare_runs.py; see submit.py)
 # Runs real.exe, then wrf.exe if real succeeded; real's rsl logs are moved to real_logs/.

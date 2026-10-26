@@ -4,7 +4,7 @@
 #SBATCH -p nocona
 #SBATCH -N 1
 #SBATCH --ntasks-per-node=48
-#SBATCH -t 02:00:00
+#SBATCH -t 01:00:00
 
 # Usage: sbatch -D WPS_DIR/EVENT ungrib_metgrid.sh     (after geogrid has finished; see submit.py)
 # Runs ungrib.exe, then metgrid.exe if ungrib succeeded. Slurm's output goes to <jobname>-<jobid>.log there.

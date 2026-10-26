@@ -10,7 +10,7 @@
 - Register/log in to CDS account and [follow the instructions](https://cds.climate.copernicus.eu/how-to-api) to setup an API key (~/.cdsapirc file)
     - Accept the Terms of Use at the bottom of the data access pages ([here](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels?tab=download) and [here](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-pressure-levels?tab=download))
 
-# Steps to run
+# Steps to run on HPCC
 **Load ERA5 forcing data**:
 
 ```python era5.py```
@@ -32,10 +32,16 @@
 **Prepare for WRF runs.** This creates a directory `../runs` with subdirectories for each run (event + scheme combination, containing namelist.input, links to executables, tslist, and iofields.txt). Replace `USER` with username and change locations as necessary. `{event}` will be replaced by the script with each respective event path, per run.
 
 ```python prepare_runs.py ./runs --wrf-run /lustre/work/USER/WRFV4/run --met-em ./wps/{event}```
-- For a 3-hr test run: `python prepare_runs.py ./testruns --events 20131210 --schemes ysu`
+- For a single 3-hr test run: `python prepare_runs.py ./testruns --events 20131210 --schemes ysu --run-hours 3 --wrf-run /lustre/work/USER/WRFV4/run --met-em ./wps/{event}`
 
 **Submit WRF runs: Real + WRF.** This submits jobs to the slurm queue, by calling sbatch with the submission scripts from `sub` as necessary; it will automatically handle the dependency chain (Real > WRF).
 `python submit.py wrf ./runs`
 - For the test run: `python submit.py wrf ./testruns`
 - To see the sbatch commands but not run anything, use `--dry-run`
 - Once submit has been run, use `squeue -u USER` to see your jobs in the slurm queue. If a job needs to be canceled, use `scancel JOBID`.
+
+**Pack results:**
+
+```python3 pack_results.py ./runs```
+
+Then use SCP or similar to transfer the resulting .tar.gz file to your local computer for analysis, and use `tar -xzf results.tar.gz` to extract.
