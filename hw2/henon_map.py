@@ -18,8 +18,11 @@ def henon_propagator(x, y):
             [0.3,     0.]
         ])
 
+def norm(x, y):
+    return np.sqrt(x**2 + y**2)
+
 def l2diff(x1, x2, y1, y2):
-    return np.sqrt((x1-x2)**2 + (y1-y2)**2)
+    return norm(x1-x2, y1-y2)
 
 def henon_tlm(x, y, dx, dy):
     M = henon_propagator(x, y)
@@ -66,7 +69,7 @@ def questions2through4():
     print("\n--- Question 2 ---")
 
     x, y = -1., 0.36
-    M = henon_propagator(x, y)
+    M = np.identity(2) # henon_propagator(x, y)
 
     dx, dy = 0.2, 0.2
     xp, yp = x + dx, y + dy
@@ -95,10 +98,10 @@ def questions2through4():
     for _ in range(14):
         dx, dy = henon_tlm(x, y, dx, dy)
         dx2, dy2 = henon_tlm(x, y, dx2, dy2)
+        M = henon_propagator(x, y) @ M
         x, y = henon_map(x, y)
         xp, yp = henon_map(xp, yp)
         xp2, yp2 = henon_map(xp2, yp2)
-        M = henon_propagator(x, y) @ M
 
         tlm_xp_arr_1.append(x + dx)
         tlm_yp_arr_1.append(y + dy)
@@ -129,7 +132,19 @@ def questions2through4():
     plt.xlabel("Time Step")
     plt.ylabel("||TLM-Actual||")
     plt.title("Henon map perturbation evolution: TLM estimate vs actual\nEuclidean norm of difference")
-    plt.savefig(resultsdir / "q3_difference.png")
+    plt.savefig(resultsdir / "q3_difference1.png")
+
+    plt.close()
+
+    Ndifferences1 = [norm(x1, y1) - norm(x2, y2) for x1, y1, x2, y2 in zip(tlm_xp_arr_1, tlm_yp_arr_1, actual_xp_arr_1, actual_yp_arr_1)]
+    Ndifferences2 = [norm(x1, y1) - norm(x2, y2) for x1, y1, x2, y2 in zip(tlm_xp_arr_2, tlm_yp_arr_2, actual_xp_arr_2, actual_yp_arr_2)]
+    plt.plot(range(15), Ndifferences1, label="(dx0, dy0)=(0.2, 0.2)")
+    plt.plot(range(15), Ndifferences2, label="(dx0, dy0)=(0.02, 0.02)")
+    plt.legend()
+    plt.xlabel("Time Step")
+    plt.ylabel("||TLM||-||Actual||")
+    plt.title("Henon map perturbation evolution: TLM estimate vs actual\nDifference of Euclidean norms")
+    plt.savefig(resultsdir / "q3_difference2.png")
 
     print("Plotted TLM estimate skill.")
 
@@ -144,17 +159,18 @@ def question5():
     print("\n--- Question 5 ---")
     print("For (x0, y0)=(1,1) over 14 timesteps...")
     x, y = 1., 1.
-    M = henon_propagator(x, y)
+    M = np.identity(2) # henon_propagator(x, y)
     for _ in range(14):
-        x, y = henon_map(x, y)
         M = henon_propagator(x, y) @ M
+        x, y = henon_map(x, y)
     U, s, Vt = np.linalg.svd(M)
-    leading_singular_vector = U[:, 0]
+    V = Vt.T
+    leading_singular_vector = V[:, 0]
     amplification = s[0]
     print(f"Leading left singular vector: {leading_singular_vector}")
     print(f"Amplification factor (singular value): {amplification}")
 
 if __name__ == "__main__":
-    question1()
-    questions2through4()
+    # question1()
+    # questions2through4()
     question5()
