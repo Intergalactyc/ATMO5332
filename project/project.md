@@ -42,6 +42,6 @@
 
 **Pack results:**
 
-```python3 pack_results.py ./runs```
+```python pack_results.py ./runs```
 
 Then use SCP or similar to transfer the resulting .tar.gz file to your local computer for analysis, and use `tar -xzf results.tar.gz` to extract.
