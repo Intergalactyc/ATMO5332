@@ -6,11 +6,11 @@ Submit the WPS or WRF batch jobs (sub/*.sh). Each job runs in its own directory 
     wrf DIR   real + wrf in each DIR/<event>_<scheme>
 
 Usage examples (after prepare_wps.py / prepare_runs.py):
-    python3 submit.py wps ./wps                                     (geogrid + all events)
-    python3 submit.py wps ./wps --events 20131216 --skip-geogrid    (redo one event; geo_em files already made)
-    python3 submit.py wrf ./runs                                    (every run directory)
-    python3 submit.py wrf ./runs --events 20131210 --schemes ysu mynn
-    python3 submit.py wrf ./runs --dry-run                          (print the sbatch commands only)
+    python submit.py wps ./wps                                     (geogrid + all events)
+    python submit.py wps ./wps --events 20131216 --skip-geogrid    (redo one event; geo_em files already made)
+    python submit.py wrf ./runs                                    (every run directory)
+    python submit.py wrf ./runs --events 20131210 --schemes ysu mynn
+    python submit.py wrf ./runs --dry-run                          (print the sbatch commands only)
 """
 
 import argparse

@@ -1,5 +1,5 @@
 # Requirements
-- Python packages: `cdsapi`, `matplotlib`, `numpy`, `pandas`, `tqdm`, `netcdf4`
+- Python packages: `cdsapi`, `matplotlib`, `numpy`, `pandas`, `netcdf4`
     - Have the `ncl_stable` environment properly set up and activated
     - Use `conda install -c conda-forge <packages>` to install packages as needed
 - Register/log in to CDS account and [follow the instructions](https://cds.climate.copernicus.eu/how-to-api) to setup an API key (~/.cdsapirc file)
@@ -30,23 +30,27 @@
 - For a single 3-hr test run: `python prepare_runs.py ./testruns --events 20131210 --schemes ysu --run-hours 3 --wrf-run /lustre/work/USER/WRFV4/run --met-em ./wps/{event}`
 
 **Submit WRF runs: Real + WRF.** This submits jobs to the slurm queue, by calling sbatch with the submission scripts from `sub` as necessary; it will automatically handle the dependency chain (Real > WRF).
-`python submit.py wrf ./runs`
+
+```python submit.py wrf ./runs```
 - For the test run: `python submit.py wrf ./testruns`
 - To see the sbatch commands but not run anything, use `--dry-run`
 - Once submit has been run, use `squeue -u USER` to see your jobs in the slurm queue. If a job needs to be canceled, use `scancel JOBID`.
 
-**Pack and transfer results.** First, pack the smaller files into an archive:
+**Pack and transfer results.**
+Pack everything (station time series, logs, and the tower column extracted from the d03 wrfout files) into one archive, as a batch job:
 
-```python pack_results.py ./runs```
+```
+sbatch -p nocona -N 1 --ntasks-per-node=16 -t 02:00:00 -o pack-%j.log --wrap "python3 pack_results.py ./runs --workers 16"
+```
 
-Then, run
+Finally, use SCP or similar to transfer the archive to your local computer for analysis, and extract the archive. For example:
 
-Finally, use SCP or similar to transfer the archive and wrfout subset to your local computer for analysis, and extract the archive. For example:
 ```
 scp username@login.hpcc.ttu.edu:/path/to/ATMO5332/project/results.tar.gz .
-scp username@login.hpcc.ttu.edu:/path/to/ATMO5332/project/wrfout_subset .
 tar -xzf results.tar.gz
 ```
+
+Wrfout files themselves are not packed or transferred in the above.
 
 # Resources
 - [ERA5 original paper](https://rmets.onlinelibrary.wiley.com/doi/10.1002/qj.4803)
