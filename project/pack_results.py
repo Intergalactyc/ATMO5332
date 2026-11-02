@@ -7,9 +7,9 @@ Pack WRF run results into one .tar.gz for transfer. For each run directory RUNS_
 Files are stored as <event>_<scheme>/<file> in the archive.
 
 Usage examples:
-    python3 pack_results.py ./runs                                    (all runs -> results.tar.gz)
-    python3 pack_results.py ./runs --events 20131210 --schemes ysu -o test.tar.gz
-    python3 pack_results.py ./runs --wrfout -o with_wrfout.tar.gz
+    python pack_results.py ./runs                                    (all runs -> results.tar.gz)
+    python pack_results.py ./runs --events 20131210 --schemes ysu -o test.tar.gz
+    python pack_results.py ./runs --wrfout -o with_wrfout.tar.gz
 
 Requires tqdm (progress bar).
 """

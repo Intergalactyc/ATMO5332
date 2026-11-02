@@ -42,6 +42,6 @@
 
 **Pack results:**
 
-```python pack_results.py ./runs```
+```python pack_results.py ./runs --wrfout```
 
-Then use SCP or similar to transfer the resulting .tar.gz file to your local computer for analysis, and use `tar -xzf results.tar.gz` to extract.
+The flag `--wrfout` may be omitted if you do not need the d03 wrfout files. Once the script successfully runs, use SCP or similar to transfer the resulting .tar.gz file to your local computer for analysis, and use `tar -xzf results.tar.gz` to extract.
