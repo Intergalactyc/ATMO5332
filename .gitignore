@@ -30,3 +30,5 @@ era5/
 wps/
 runs/
 testruns/
+
+*.tar.gz
