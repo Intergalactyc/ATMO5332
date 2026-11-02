@@ -1,12 +1,7 @@
-# Resources
-- [TODO list (Google Doc)](https://docs.google.com/document/d/1MaAgE-IjlVOfKC0na4SlL0sTxNxAfBCuPWs6HdiygNU/)
-- [ERA5 original paper](https://rmets.onlinelibrary.wiley.com/doi/10.1002/qj.4803)
-- ERA5 data access: [single levels](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels?tab=download), [pressure levels](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-pressure-levels?tab=download)
-- [era5-for-wrf](https://github.com/moptis/era5-for-wrf/tree/main)
-- [WRF Physics Options](https://www2.mmm.ucar.edu/wrf/users/tutorial/presentation_pdfs/201107/WRF_Physics_Dudhia.ppt.pdf)
-
 # Requirements
-- Python packages: `cdsapi`, `matplotlib`, `numpy`, `pandas`
+- Python packages: `cdsapi`, `matplotlib`, `numpy`, `pandas`, `tqdm`, `netcdf4`
+    - Have the `ncl_stable` environment properly set up and activated
+    - Use `conda install -c conda-forge <packages>` to install packages as needed
 - Register/log in to CDS account and [follow the instructions](https://cds.climate.copernicus.eu/how-to-api) to setup an API key (~/.cdsapirc file)
     - Accept the Terms of Use at the bottom of the data access pages ([here](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels?tab=download) and [here](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-pressure-levels?tab=download))
 
@@ -40,8 +35,20 @@
 - To see the sbatch commands but not run anything, use `--dry-run`
 - Once submit has been run, use `squeue -u USER` to see your jobs in the slurm queue. If a job needs to be canceled, use `scancel JOBID`.
 
-**Pack results:**
+**Pack and transfer results.** First, pack the smaller files into an archive:
 
-```python3 pack_results.py ./runs```
+```python pack_results.py ./runs```
 
-Then use SCP or similar to transfer the resulting .tar.gz file to your local computer for analysis, and use `tar -xzf results.tar.gz` to extract.
+Then, run
+
+Finally, use SCP or similar to transfer the archive and wrfout subset to your local computer for analysis, and extract the archive. For example:
+```
+scp username@login.hpcc.ttu.edu:/path/to/ATMO5332/project/results.tar.gz .
+scp username@login.hpcc.ttu.edu:/path/to/ATMO5332/project/wrfout_subset .
+tar -xzf results.tar.gz
+```
+
+# Resources
+- [ERA5 original paper](https://rmets.onlinelibrary.wiley.com/doi/10.1002/qj.4803)
+- ERA5 data access: [single levels](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels?tab=download), [pressure levels](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-pressure-levels?tab=download)
+- [WRF Physics Options](https://www2.mmm.ucar.edu/wrf/users/tutorial/presentation_pdfs/201107/WRF_Physics_Dudhia.ppt.pdf)
