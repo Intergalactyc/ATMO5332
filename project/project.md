@@ -95,7 +95,7 @@ Finally, use SCP or similar to transfer the archive to your local computer for a
 ```
 scp username@login.hpcc.ttu.edu:/path/to/ATMO5332/project/results.tar.gz .
 mkdir runs
-tar -xzf results.tar.gz -C runs
+tar -xzf results.tar.gz -C results
 ```
 
 Wrfout files themselves are not packed or transferred in the above.
