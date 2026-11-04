@@ -1,28 +1,23 @@
 # Information
 **Overarching question**: *Which PBL parameterization schemes best reproduce the nocturnal stable boundary layer and associated low-level jet over the South Plains region?*
 
-This project involves running WRF-ARW v4 on several days with known nocturnal low-level jets (LLJs) with noses below 200 meters (as observed by the Texas Tech University 200-meter tower at Reese Technology Center). Several PBL closure schemes will be compared for each event. Initial and LBC forcing data comes from ERA5 reanalysis. Analysis of results will compare model outputs to surface observations made by the West Texas Mesonet, as well as to observations at the TTU 200-m tower, especially for flux comparisons and study of the LLJ wind profile.
+This project involves running WRF-ARW v4 on several days with known nocturnal low-level jets (LLJs) with noses below 200 meters (as observed by the Texas Tech University 200-meter tower at Reese Technology Center). Several PBL closure schemes will be compared for each event. Initial and LBC forcing data comes from ERA5 reanalysis. Analysis of results will compare model outputs to surface observations made by the West Texas Mesonet, as well as to observations from TTU's 200-m tower, especially for flux comparisons and study of the LLJ wind profile.
 
 Schemes being compared:
 - Yonsei University Scheme (YSU)
     - bl_pbl_physics=1
     - 1st-order non-local mixing closure
-    - Using Jimenez's (Revised MM5) Monin-Obukhov surface-layer scheme (sf_sfclay_physics=1)
-- Mellor-Yamada-Janjic (MYJ)
-    - bl_pbl_physics=2
-    - 1.5-order local TKE closure
-    - Using the Janjic Monin-Obukhov surface-layer scheme (sf_sfclay_physics=2)
-        - Option 1 is not supported for MYJ
 - Mellor-Yamada-Nakanishi-Niino Level 2.5 (MYNN)
     - bl_pbl_physics=5
     - Also known as MYNN2 or MYNN2.5 (in contrast to the Level 2.6 MYNN26/MYNN2.6 or the Level 3 MYNN3)
     - 1.5-order local TKE closure
-    - Using Jimenez's (Revised MM5) Monin-Obukhov surface-layer scheme (sf_sfclay_physics=1)
-        - There is also a paired MYNN surface-layer scheme (sf_sfclay_physics=5), but we are not using that here
 - Asymmetric Convective Model version 2 (ACM2)
     - bl_pbl_physics=7
     - 1st-order hybrid closure
-    - Using Jimenez's (Revised MM5) Monin-Obukhov surface-layer scheme (sf_sfclay_physics=1)
+
+All schemes use Jimenez's Revised MM5 Monin-Obukhov surface-layer scheme (sf_sfclay_physics=1). MYNN has a paired MYNN surface-layer scheme (sf_sfclay_physics=5), but that is not used here; instead the same surface-layer option is used for all three PBL schemes, allowing a more fair comparison of the PBL schemes themselves.
+
+MYJ (bl_pbl_physics=2) was also considered as a PBL scheme option, but as it is relatively similar to MYNN, and also requires a slightly different Monin-Obukhov-based surface layer scheme (sf_sfclay_physics=2), it has been left out for simplicity.
 
 LLJ event dates (early morning each day):
 - 10 December 2013 (*)
@@ -110,5 +105,8 @@ Wrfout files themselves are not packed or transferred in the above.
 - Stensrud's *Parameterization Schemes* (Ch. 5) is very useful
 
 # Relevant papers
-- Storm, B., Dudhia, J., Basu, S., Swift, A. and Giammanco, I. (2009), Evaluation of the Weather Research and Forecasting model on forecasting low-level jets: implications for wind energy. Wind Energ., 12: 81-90. https://doi.org/10.1002/we.288
-- Draxl, C., Hahmann, A.N., Peña, A. and Giebel, G. (2014), Evaluating winds and vertical wind shear from Weather Research and Forecasting model forecasts using seven planetary boundary layer schemes. Wind Energ., 17: 39-55. https://doi.org/10.1002/we.1555
+- Storm, B., Dudhia, J., Basu, S., Swift, A. and Giammanco, I. (2009), Evaluation of the Weather Research and Forecasting model on forecasting low-level jets: implications for wind energy. Wind Energ., 12: 81-90. https://doi.org/10.1002/we.288.
+- Draxl, C., Hahmann, A.N., Peña, A. and Giebel, G. (2014), Evaluating winds and vertical wind shear from Weather Research and Forecasting model forecasts using seven planetary boundary layer schemes. Wind Energ., 17: 39-55. https://doi.org/10.1002/we.1555.
+- Mirocha, J. D., Simpson, M. D., Fast, J. D., Berg, L. K., and Baskett, R. L. (2016) Investigation of boundary-layer wind predictions during nocturnal low-level jet events using the Weather Research and Forecasting model. Wind Energ., 19: 739–762. https://doi.org/10.1002/we.1862.
+- Xie, B., J. C. H. Fung, A. Chan, and A. Lau (2012), Evaluation of nonlocal and local planetary boundary layer schemes in the WRF model, J. Geophys. Res., 117, D12103, https://doi.org/10.1029/2011JD017080.
+- Shin, H.H., Hong, SY. Intercomparison of Planetary Boundary-Layer Parametrizations in the WRF Model for a Single Day from CASES-99. Boundary-Layer Meteorol 139, 261–281 (2011). https://doi.org/10.1007/s10546-010-9583-z.
