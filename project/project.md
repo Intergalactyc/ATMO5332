@@ -12,7 +12,7 @@ Schemes being compared:
     - bl_pbl_physics=5
     - Also known as MYNN2 or MYNN2.5 (in contrast to the Level 2.6 MYNN26/MYNN2.6 or the Level 3 MYNN3)
     - 1.5-order local TKE closure
-    - Descriptions: https://www2.mmm.ucar.edu/wrf/users/physics/phys_refs/PBL/MYNN_part3.pdf, https://repository.library.noaa.gov/view/noaa/72267, https://www2.mmm.ucar.edu/wrf/users/physics/phys_refs/PBL/MYNN_part2.pdf
+    - Original paper: https://www.jstage.jst.go.jp/article/jmsj/87/5/87_5_895/_article
 - Asymmetric Convective Model version 2 (ACM2)
     - bl_pbl_physics=7
     - 1st-order hybrid closure
@@ -117,5 +117,14 @@ Wrfout files themselves are not packed or transferred in the above.
 
 ### Scheme descriptions
 #### YSU
-- Hong, S., Y. Noh, and J. Dudhia, 2006: A New Vertical Diffusion Package with an Explicit Treatment of Entrainment Processes. Mon. Wea. Rev., 134, 2318–2341, https://doi.org/10.1175/MWR3199.1. 
+- **Original Paper:** Hong, S., Y. Noh, and J. Dudhia, 2006: A New Vertical Diffusion Package with an Explicit Treatment of Entrainment Processes. Mon. Wea. Rev., 134, 2318–2341, https://doi.org/10.1175/MWR3199.1. 
 - Hong, S.-Y. (2010), A new stable boundary-layer mixing scheme and its impact on the simulated East Asian summer monsoon. Q.J.R. Meteorol. Soc., 136: 1481-1496. https://doi.org/10.1002/qj.665
+
+#### MYNN
+- **Original Paper:** Nakanishi, M. and H. Niino, 2009: Development of an improved turbulence closure model for the atmospheric boundary layer. J. Meteor. Soc. Japan, 87, 895-912. https://doi.org/10.2151/jmsj.87.895
+- See also: 
+https://www2.mmm.ucar.edu/wrf/users/physics/phys_refs/PBL/MYNN_part3.pdf, https://repository.library.noaa.gov/view/noaa/72267, https://www2.mmm.ucar.edu/wrf/users/physics/phys_refs/PBL/MYNN_part2.pdf
+
+#### ACM2
+- **Original Paper, Part I:** Pleim, J. E., 2007: A Combined Local and Nonlocal Closure Model for the Atmospheric Boundary Layer. Part I: Model Description and Testing. J. Appl. Meteor. Climatol., 46, 1383–1395, https://doi.org/10.1175/JAM2539.1.
+- **Original Paper, Part II:** Pleim, J. E., 2007: A Combined Local and Nonlocal Closure Model for the Atmospheric Boundary Layer. Part II: Application and Evaluation in a Mesoscale Meteorological Model. J. Appl. Meteor. Climatol., 46, 1396–1409, https://doi.org/10.1175/JAM2534.1. 
