@@ -10,6 +10,7 @@ build/
 venv/
 .venv/
 venv*/
+.venv*/
 
 .stignore
 *.sync-conflict*

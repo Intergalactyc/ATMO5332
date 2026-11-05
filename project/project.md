@@ -44,15 +44,15 @@ Spatial domains:
 
 The ROI for analysis is 32.10° to 35.10° latitude, -103.67° to -100.11° longitude. These bounds were chosen to remain at least 15 km within d03 edge (to avoid edge spinup issues). Analysis should use all and only mesonet stations within this region (tslist is generated to use specifically these stations).
 
-
-# Requirements
-- Python packages: `cdsapi`, `matplotlib`, `numpy`, `pandas`, `netcdf4`
+# Steps to run on HPCC
+## Requirements
+- Python packages: `cdsapi`, `numpy`, `pandas`, `netcdf4`
     - Have the `ncl_stable` environment properly set up and activated
     - Use `conda install -c conda-forge <packages>` to install packages as needed
 - Register/log in to CDS account and [follow the instructions](https://cds.climate.copernicus.eu/how-to-api) to setup an API key (~/.cdsapirc file)
     - Accept the Terms of Use at the bottom of the data access pages ([here](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels?tab=download) and [here](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-pressure-levels?tab=download))
 
-# Steps to run on HPCC
+## Data loading, WRF run, and result packaging
 **Load ERA5 forcing data**:
 
 ```python era5.py```
@@ -99,6 +99,12 @@ tar -xzf results.tar.gz -C results
 ```
 
 Wrfout files themselves are not packed or transferred in the above.
+
+# Analysis
+## Requirements
+- Python packages: `numpy`, `pandas`, `matplotlib`, `netcdf4`, `ttu-tower-processing`
+    - `ttu-tower-processing` is available at https://github.com/Intergalactyc/ttu-tower-processing
+    - Requires Python version 3.13 (make sure you have it installed and use e.g. `python3.13 -m venv .venv313` or similar to create a virtual environment)
 
 # Resources
 - [ERA5 original paper](https://rmets.onlinelibrary.wiley.com/doi/10.1002/qj.4803)
