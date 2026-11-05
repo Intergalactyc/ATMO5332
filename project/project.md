@@ -90,7 +90,7 @@ Pack everything (station time series, logs, and the tower column extracted from 
 sbatch -p nocona -N 1 --ntasks-per-node=16 -t 02:00:00 -o pack-%j.log --wrap "python3 pack_results.py ./runs --workers 16"
 ```
 
-Finally, use SCP or similar to transfer the archive to your local computer for analysis, and extract the archive. For example:
+Finally, transfer the archive to your local computer for analysis, and extract the archive. You should probably use Globus for this (HPCC will get mad if you use SCP for large transfers). It could be done via SCP - for example:
 
 ```
 scp username@login.hpcc.ttu.edu:/path/to/ATMO5332/project/results.tar.gz .

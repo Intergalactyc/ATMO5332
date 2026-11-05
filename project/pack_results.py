@@ -3,6 +3,7 @@ Pack WRF run results into one .tar.gz for transfer. For each run directory RUNS_
     tower_column.nc     the d03 column at the tower's grid point from every wrfout_d03 file (written into the run
                         directory first): heights, earth-relative winds, potential temperature, pressure, moisture,
                         TKE and exchange coefficients on the lowest --levels levels, plus PBLH, UST, HFX, LH
+                        (TKE is TKE_PBL on the w levels, except for MYNN: QKE / 2 on the mass levels)
     <pfx>.d03.TS, .UU, .VV, .WW, .TH, .QV, .PH, .PR    tower and station time series (d03 only)
     namelist.input, namelist.output, tslist
     rsl.error.0000, real_logs/rsl.*.0000, wrf*-<jobid>.log   logs (timing, level heights, errors)
@@ -69,6 +70,10 @@ def read_column(task):
         for name in ("TKE_PBL", "EXCH_H", "EXCH_M"):  # on the w levels; TKE_PBL only exists for TKE schemes
             if name in v:
                 column[name.lower()] = v[name][0, :levels + 1, j, i]
+        # MYNN (bl_pbl_physics = 5) keeps its TKE in QKE (= 2 TKE, on the mass levels) and leaves TKE_PBL at zero,
+        # so for MYNN tke_pbl is QKE / 2 on the mass levels instead
+        if nc.getncattr("BL_PBL_PHYSICS") == 5 and "QKE" in v:
+            column["tke_pbl"] = 0.5 * v["QKE"][0, :levels, j, i]
         for name in ("PBLH", "UST", "HFX", "LH"):
             column[name.lower()] = v[name][0, j, i]
     return column

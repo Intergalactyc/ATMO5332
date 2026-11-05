@@ -213,7 +213,8 @@ class TowerColumn:
     exch_h : pd.DataFrame  # exchange coefficient for heat (w levels), m2/s
     exch_m : pd.DataFrame  # exchange coefficient for momentum (w levels), m2/s
     sfc : pd.DataFrame  # time series: pblh (m), ust (m/s), hfx (W/m2), lh (W/m2)
-    tke_pbl : Optional[pd.DataFrame] = None  # TKE (w levels), m2/s2; only for TKE schemes (e.g. MYNN)
+    tke_pbl : Optional[pd.DataFrame] = None  # TKE, m2/s2; only for TKE schemes. On w levels, except for MYNN, where
+                                             # it is QKE / 2 on mass levels (pack_results.py; TKE_PBL is all zero)
     units : dict = field(default_factory=dict, repr=False)
 
 

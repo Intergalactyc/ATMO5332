@@ -11,7 +11,8 @@
 # indexed by time. Interpolation is linear in height above ground, done separately at every time step, since
 # the model level heights move with time. Boom heights outside the range of the levels a variable lives on are
 # NaN (no extrapolation): mass-level variables start at ~4.6 m, so booms 1-3 (0.9, 2.4, 4.0 m) are NaN for them,
-# while w-level variables (exch_h, exch_m, tke_pbl) start at the ground and cover every boom.
+# while w-level variables (exch_h, exch_m, tke_pbl) start at the ground and cover every boom. Exception: for MYNN,
+# tke_pbl is QKE / 2 on the mass levels (pack_results.py), so it is NaN at booms 1-3 like the mass-level variables.
 #
 # Winds: the earth-relative components u and v are interpolated, and ws and wd are computed from the
 # interpolated components. Interpolating ws or wd directly would be inconsistent with u, v (and wd wraps at 360).
@@ -25,7 +26,8 @@ from ttu_tower import constants
 HEIGHTS: dict[int, float] = constants.HEIGHTS  # boom -> height, m AGL
 
 MASS_LEVEL_VARS = ["u", "v", "theta", "p", "qv"]  # TowerColumn variables on mass levels (heights column.z)
-W_LEVEL_VARS = ["exch_h", "exch_m", "tke_pbl"]  # TowerColumn variables on w levels (heights column.z_w)
+W_LEVEL_VARS = ["exch_h", "exch_m", "tke_pbl"]  # TowerColumn variables on w levels (heights column.z_w), but MYNN's
+                                                # tke_pbl is on mass levels; interpolate_column checks each one's shape
 PROFILE_VARS = ["u", "v", "w", "theta", "p", "qv"]  # Station profile variables, all on mass levels (station.z)
 
 
@@ -61,7 +63,8 @@ def interpolate_column(column: loader.TowerColumn, heights: dict[int, float] = H
     for var in W_LEVEL_VARS:
         values = getattr(column, var)
         if values is not None:
-            interpolated[var] = interpolate_to_heights(values, column.z_w, heights)
+            z = column.z_w if values.shape[1] == column.z_w.shape[1] else column.z  # w or mass levels
+            interpolated[var] = interpolate_to_heights(values, z, heights)
     return pd.concat([_wide(interpolated), column.sfc], axis=1)
 
 
