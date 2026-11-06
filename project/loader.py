@@ -210,15 +210,30 @@ class TowerColumn:
     theta : pd.DataFrame  # potential temperature, K
     p : pd.DataFrame  # pressure, Pa
     qv : pd.DataFrame  # water vapor mixing ratio, kg/kg
-    exch_h : pd.DataFrame  # exchange coefficient for heat (w levels), m2/s
-    exch_m : pd.DataFrame  # exchange coefficient for momentum (w levels), m2/s
+    exch_h : pd.DataFrame  # exchange coefficient for heat (w levels; 0 at the ground), m2/s
+    exch_m : pd.DataFrame  # exchange coefficient for momentum (w levels; 0 at the ground), m2/s
     sfc : pd.DataFrame  # time series: pblh (m), ust (m/s), hfx (W/m2), lh (W/m2)
     tke_pbl : Optional[pd.DataFrame] = None  # TKE, m2/s2; only for TKE schemes. On w levels, except for MYNN, where
                                              # it is QKE / 2 on mass levels (pack_results.py; TKE_PBL is all zero)
     units : dict = field(default_factory=dict, repr=False)
 
 
-def load_tower_column(path: Path) -> TowerColumn:
+ACM2 = 7  # bl_pbl_physics of ACM2
+
+
+def pbl_physics(directory: Path) -> Optional[int]:
+    """bl_pbl_physics of the run (first domain's value) from its namelist.input, or None if not found."""
+    path = Path(directory) / "namelist.input"
+    if not path.is_file():
+        return None
+    m = re.search(r"^\s*bl_pbl_physics\s*=\s*(\d+)", path.read_text(), re.MULTILINE | re.IGNORECASE)
+    return int(m[1]) if m else None
+
+
+def load_tower_column(path: Path, pbl: Optional[int] = None) -> TowerColumn:
+    """Read tower_column.nc. pbl is the run's bl_pbl_physics: for ACM2 the exchange coefficients are moved up
+    one w level, since ACM2 stores the coefficient for w level k + 1 at index k (EXCH_H(K) = EDDYZ(K), computed at
+    ZF(K), the top of layer K, in module_bl_acm.F), while YSU and MYNN store it at index k with k = 1 the ground."""
     with Dataset(path) as nc:
         nc.set_auto_mask(False)
         tvar = nc.variables["time"]
@@ -235,6 +250,11 @@ def load_tower_column(path: Path) -> TowerColumn:
             else:
                 levels = pd.RangeIndex(1, data.shape[1] + 1, name=var.dimensions[1])
                 profiles[name] = pd.DataFrame(data, index=times, columns=levels)
+    if pbl == ACM2:
+        for name in ("exch_h", "exch_m"):
+            shifted = profiles[name].shift(1, axis=1)  # value at index k -> w level k + 1; the top one drops off
+            shifted[1] = 0.0  # no exchange coefficient at the ground (surface fluxes come from the surface layer)
+            profiles[name] = shifted
     profiles["ws"] = wind_speed(profiles["u"], profiles["v"])
     profiles["wd"] = wind_direction(profiles["u"], profiles["v"])
     return TowerColumn(**profiles, sfc=pd.DataFrame(sfc, index=times), units=units)
@@ -245,7 +265,7 @@ class Tower(Station):
 
     @cached_property
     def column(self) -> TowerColumn:
-        return load_tower_column(self.directory / "tower_column.nc")
+        return load_tower_column(self.directory / "tower_column.nc", pbl_physics(self.directory))
 
 
 @dataclass
