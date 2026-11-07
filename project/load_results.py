@@ -1,12 +1,12 @@
 """
-loader.py
+load_results.py
 Module for loading results for analysis
 
 Usage:
-    import loader
-    runs = loader.load_all()                      # {(date, scheme): RunOutput}; instant, data is read lazily
+    import load_results
+    runs = load_results.load_all()                # {(date, scheme): RunOutput}; instant, data is read lazily
     run = runs["20131210", "ysu"]                 # dates may be "YYYYMMDD", "YYYY-MM-DD", date or datetime
-    run = loader.load_run("20131210", "ysu")      # same thing, one run
+    run = load_results.load_run("20131210", "ysu")  # same thing, one run
     abern = run.stations["ABERN"]                 # station map: prefix -> Station
     abern.df[["t", "ws", "wd"]]                   # surface time series (.TS), indexed by valid time
     abern.ws, abern.z                             # profiles: time x model level (1 = lowest)
@@ -205,8 +205,6 @@ class TowerColumn:
     z_w : pd.DataFrame  # w level heights, m AGL
     u : pd.DataFrame  # west-east wind, m/s (earth-relative)
     v : pd.DataFrame  # south-north wind, m/s (earth-relative)
-    ws : pd.DataFrame  # wind speed, m/s
-    wd : pd.DataFrame  # wind direction, degrees from
     theta : pd.DataFrame  # potential temperature, K
     p : pd.DataFrame  # pressure, Pa
     qv : pd.DataFrame  # water vapor mixing ratio, kg/kg
@@ -215,7 +213,6 @@ class TowerColumn:
     sfc : pd.DataFrame  # time series: pblh (m), ust (m/s), hfx (W/m2), lh (W/m2)
     tke_pbl : Optional[pd.DataFrame] = None  # TKE, m2/s2; only for TKE schemes. On w levels, except for MYNN, where
                                              # it is QKE / 2 on mass levels (pack_results.py; TKE_PBL is all zero)
-    units : dict = field(default_factory=dict, repr=False)
 
 
 ACM2 = 7  # bl_pbl_physics of ACM2
@@ -239,11 +236,10 @@ def load_tower_column(path: Path, pbl: Optional[int] = None) -> TowerColumn:
         tvar = nc.variables["time"]
         base = datetime.strptime(tvar.units.split("since ")[1], "%Y-%m-%d %H:%M:%S")
         times = pd.DatetimeIndex(base + pd.to_timedelta(tvar[:], unit="min").round("1s"), name="time")
-        profiles, sfc, units = {}, {}, {}
+        profiles, sfc = {}, {}
         for name, var in nc.variables.items():
             if name == "time":
                 continue
-            units[name] = var.units
             data = np.asarray(var[:], dtype=float)
             if data.ndim == 1:
                 sfc[name] = data
@@ -255,9 +251,7 @@ def load_tower_column(path: Path, pbl: Optional[int] = None) -> TowerColumn:
             shifted = profiles[name].shift(1, axis=1)  # value at index k -> w level k + 1; the top one drops off
             shifted[1] = 0.0  # no exchange coefficient at the ground (surface fluxes come from the surface layer)
             profiles[name] = shifted
-    profiles["ws"] = wind_speed(profiles["u"], profiles["v"])
-    profiles["wd"] = wind_direction(profiles["u"], profiles["v"])
-    return TowerColumn(**profiles, sfc=pd.DataFrame(sfc, index=times), units=units)
+    return TowerColumn(**profiles, sfc=pd.DataFrame(sfc, index=times))
 
 
 class Tower(Station):
@@ -370,4 +364,4 @@ if __name__ == "__main__":
     print(st.ws.iloc[:3, :5])
     col = run.tower.column
     print(col.sfc.head(3))
-    print(col.ws.iloc[:3, :5])
+    print(col.u.iloc[:3, :5])
