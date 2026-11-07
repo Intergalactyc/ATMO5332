@@ -46,7 +46,7 @@ The ROI for analysis is 32.10° to 35.10° latitude, -103.67° to -100.11° long
 
 # Steps to run on HPCC
 ## Requirements
-- Python packages: `cdsapi`, `numpy`, `pandas`, `netcdf4`
+- Python packages: `cdsapi`, `numpy`, `netcdf4`
     - Have the `ncl_stable` environment properly set up and activated
     - Use `conda install -c conda-forge <packages>` to install packages as needed
 - Register/log in to CDS account and [follow the instructions](https://cds.climate.copernicus.eu/how-to-api) to setup an API key (~/.cdsapirc file)
@@ -60,7 +60,7 @@ The ROI for analysis is 32.10° to 35.10° latitude, -103.67° to -100.11° long
 **Prepare for WPS runs.** This creates a directory `./wps` with `geo` subdirectory as well as subdirectories for each event (containing namelist.wps and links to executables + ERA5 gribfiles). Replace `USER` with username and change locations as necessary.
 
 ```python prepare_wps.py ./wps --wps /lustre/work/USER/WPSV4```
-- If ERA5 data is located somewhere other than `../era5` (based on project folder), use `--era5` to override.
+- If ERA5 data is located somewhere other than `./era5` (in the project folder), use `--era5` to override.
 - If GEOG data is located somewhere other than the template-specified location (should be `/lustre/research/bancell/geogV4/WPS_GEOG`), use `--geog-data-path` to override.
 - If this has already been run and you are rerunning to update existing directories, add `--force`
 
@@ -71,7 +71,7 @@ The ROI for analysis is 32.10° to 35.10° latitude, -103.67° to -100.11° long
 - To see the sbatch commands but not run anything, use `--dry-run`
 - Once submit has been run, use `squeue -u USER` to see your jobs in the slurm queue. If a job needs to be canceled, use `scancel JOBID`.
 
-**Prepare for WRF runs.** This creates a directory `../runs` with subdirectories for each run (event + scheme combination, containing namelist.input, links to executables, tslist, and iofields.txt). Replace `USER` with username and change locations as necessary. `{event}` will be replaced by the script with each respective event path, per run.
+**Prepare for WRF runs.** This creates a directory `./runs` with subdirectories for each run (event + scheme combination, containing namelist.input, links to executables, tslist, and iofields.txt). Replace `USER` with username and change locations as necessary. `{event}` will be replaced by the script with each run's event date.
 
 ```python prepare_runs.py ./runs --wrf-run /lustre/work/USER/WRFV4/run --met-em ./wps/{event}```
 - For a single 3-hr test run: `python prepare_runs.py ./testruns --events 20131210 --schemes ysu --run-hours 3 --wrf-run /lustre/work/USER/WRFV4/run --met-em ./wps/{event}`
@@ -94,7 +94,7 @@ Finally, transfer the archive to your local computer for analysis, and extract t
 
 ```
 scp username@login.hpcc.ttu.edu:/path/to/ATMO5332/project/results.tar.gz .
-mkdir runs
+mkdir results
 tar -xzf results.tar.gz -C results
 ```
 
@@ -102,16 +102,16 @@ Wrfout files themselves are not packed or transferred in the above.
 
 # Analysis
 ## Requirements
-- Python packages: `numpy`, `pandas`, `matplotlib`, `netcdf4`, `ttu-tower-processing`, `wtxmeso`, `scipy`
+- Python packages: `numpy`, `pandas`, `matplotlib`, `netcdf4`, `ttu-tower-processing`, `wtxmeso`
     - `ttu-tower-processing` is available at https://github.com/Intergalactyc/ttu-tower-processing
     - `wtxmeso` is available at https://github.com/Intergalactyc/wtxmesonet
 - Data:
-    - West Texas Mesonet data for each of the five event dates (18 UTC the day prior to 18 UTC the day of), from all stations (really, from all 58 located in the determined analysis ROI given above)
+    - West Texas Mesonet data for each of the five event dates (18 UTC the day prior to 18 UTC the day of), from all stations (really, from all 58 located in the determined analysis ROI given above), in `MESONET_DIR` (default `~/Data/Mesonet_LLJs`) with one folder per event window
     - TTU 200 m tower data for each of the five event dates (18 UTC the day prior to 18 UTC the day of)
 
 ## Processing 200 m tower data
 Process the data using the `ttu-tower-processing` package ([GitHub](https://github.com/Intergalactyc/ttu-tower-processing)).
-- Copy the templates in `configs/tower/templates` into `configs/tower` and change the relevant paths: raw_dirs should point to a directory/directories containing the relevant tower data, and mesonet_dirs (optional) should point to REES station data from at least the given periods
+- Copy the templates in `configs/tower/templates` into `configs/tower` and change the relevant paths: raw_dirs should point to a directory/directories containing the relevant tower data, and mesonet_dir (optional) should point to REES station data from at least the given periods
 - Process each event's data:
 
 ```bash

@@ -1,17 +1,13 @@
 """
-Pack WRF run results into one .tar.gz for transfer. For each run directory RUNS_DIR/<event>_<scheme>/:
-    tower_column.nc     the d03 column at the tower's grid point from every wrfout_d03 file (written into the run
-                        directory first): heights, earth-relative winds, potential temperature, pressure, moisture,
-                        TKE and exchange coefficients on the lowest --levels levels, plus PBLH, UST, HFX, LH
-                        (TKE is TKE_PBL on the w levels, except for MYNN: QKE / 2 on the mass levels)
-    <pfx>.d03.TS, .UU, .VV, .WW, .TH, .QV, .PH, .PR    tower and station time series (d03 only)
+Pack WRF run results into one .tar.gz for transfer, as <event>_<scheme>/<file>. From each RUNS_DIR/<event>_<scheme>/:
+    tower_column.nc     written first: the d03 column at the tower grid point from every wrfout_d03 file (read_column)
+    <pfx>.d03.TS, .UU, .VV, .WW, .TH, .QV, .PH, .PR    time series
     namelist.input, namelist.output, tslist
-    rsl.error.0000, real_logs/rsl.*.0000, wrf*-<jobid>.log   logs (timing, level heights, errors)
-Files are stored as <event>_<scheme>/<file> in the archive. The wrfout files themselves are not packed.
+    rsl.error.0000, real_logs/rsl.*.0000, wrf*-<jobid>.log
+The wrfout files are not packed.
 
-The tower's grid point is the one WRF used for its time series (first line of tower.d03.TS), so the column and the
-station files line up. Reading the wrfout files takes most of the time; --workers reads several at once (run it as
-a batch job or on an interactive compute node then, not a login node).
+The tower grid point is the one WRF used for the tower's time series. --workers reads that many wrfout files at once
+(use a batch job or compute node, not a login node).
 
 Usage examples:
     python pack_results.py ./runs --workers 16                       (all runs -> results.tar.gz)
@@ -42,14 +38,15 @@ UNITS = {"z": "m above ground (mass levels)", "z_w": "m above ground (w levels)"
 
 
 def tower_point(run):
-    """0-based (i, j) of the mass grid point WRF used for the tower, from the first line of tower.d03.TS."""
+    """0-based (i, j) of the tower's mass grid point, from the tower.d03.TS header."""
     header = (run / f"{TOWER[1]}.d03.TS").open().readline()
     i, j = re.search(r"\(\s*(\d+)\s*,\s*(\d+)\s*\)", header).groups()  # "( ix, iy)", 1-based
     return int(i) - 1, int(j) - 1
 
 
 def read_column(task):
-    """Column values at mass point (i, j) from one wrfout file, on the lowest `levels` levels (+1 for w levels)."""
+    """One wrfout file's column at mass point (i, j): the lowest `levels` mass levels (levels + 1 w levels), plus
+    PBLH, UST, HFX and LH. TKE is TKE_PBL on the w levels, except MYNN's: QKE / 2 on the mass levels."""
     path, i, j, levels = task
     with Dataset(path) as nc:
         nc.set_auto_mask(False)
@@ -67,11 +64,10 @@ def read_column(task):
                   "theta": v["T"][0, :levels, j, i] + 300.0,
                   "p": v["P"][0, :levels, j, i] + v["PB"][0, :levels, j, i],
                   "qv": v["QVAPOR"][0, :levels, j, i]}
-        for name in ("TKE_PBL", "EXCH_H", "EXCH_M"):  # on the w levels; TKE_PBL only exists for TKE schemes
+        for name in ("TKE_PBL", "EXCH_H", "EXCH_M"):  # w levels; TKE_PBL only for TKE schemes
             if name in v:
                 column[name.lower()] = v[name][0, :levels + 1, j, i]
-        # MYNN (bl_pbl_physics = 5) keeps its TKE in QKE (= 2 TKE, on the mass levels) and leaves TKE_PBL at zero,
-        # so for MYNN tke_pbl is QKE / 2 on the mass levels instead
+        # MYNN (bl_pbl_physics = 5) keeps QKE = 2 TKE on the mass levels and leaves TKE_PBL zero
         if nc.getncattr("BL_PBL_PHYSICS") == 5 and "QKE" in v:
             column["tke_pbl"] = 0.5 * v["QKE"][0, :levels, j, i]
         for name in ("PBLH", "UST", "HFX", "LH"):
@@ -118,7 +114,7 @@ def main():
         sys.exit(f"error: {args.output} exists")
     runs = select(args.dir, args.events, args.schemes)
 
-    # Progress lines are flushed right away so they show up in the Slurm log while the job runs
+    # flush so progress shows in the Slurm log during the job
     with multiprocessing.Pool(args.workers) as pool:
         for run in runs:
             rsl = run / "rsl.error.0000"

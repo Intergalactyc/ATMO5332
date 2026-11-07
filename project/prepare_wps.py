@@ -1,21 +1,19 @@
 """
-Create and prepare the WPS directories: OUTDIR/geo/ for geogrid (run once) and OUTDIR/<event>/ for ungrib + metgrid
+Create the WPS directories: OUTDIR/geo/ for geogrid and OUTDIR/<event>/ for ungrib and metgrid.
 
-OUTDIR/geo/ gets namelist.wps (configs/namelist.wps.template) and links to geogrid.exe and the geogrid/ table directory.
-Each OUTDIR/<event>/ gets:
-    namelist.wps    the template with the event's dates (d01 for the whole run, nests at the start only) and the
-                    geo_em files read from ../geo/
-    links           ungrib.exe, metgrid.exe, the metgrid/ table directory, Vtable (Vtable.ECMWF), and
-                    GRIBFILE.AAA, GRIBFILE.AAB, ... to the event's ERA5 GRIB files (ERA5_DIR/<event>/*.grib from era5.py)
-The run length is taken from configs/namelist.input.template, so WPS covers the same period as the WRF runs.
+OUTDIR/geo/ gets namelist.wps (configs/namelist.wps.template) and links to geogrid.exe and geogrid/.
+Each OUTDIR/<event>/ gets
+    namelist.wps    the template with the event's dates (the nests need only the start) and geo_em files from ../geo/
+    links           ungrib.exe, metgrid.exe, metgrid/, Vtable (Vtable.ECMWF), and GRIBFILE.AAA, .AAB, ... to the
+                    event's ERA5 files (--era5 DIR/<event>/*.grib)
+The run length comes from configs/namelist.input.template.
 
 Usage examples:
     python prepare_wps.py ./wps --wps /lustre/work/USER/WPSV4                  (all events)
     python prepare_wps.py ./wps --wps /lustre/work/USER/WPSV4 --events 20131210 --era5 /lustre/work/USER/era5
     python prepare_wps.py ./wps --wps /lustre/work/USER/WPSV4 --geog-data-path /lustre/work/USER/WPS_GEOG
 
-Existing directories are only updated with --force, which replaces the files and links made here and leaves
-anything else (e.g. geo_em or met_em output) alone.
+--force updates existing directories, replacing only the files and links made here.
 """
 
 import argparse

@@ -6,13 +6,12 @@ results_dir = ""          # "" = ~/.ttu-tower/results
 mesonet_dir = "C:/Users/ellwalke/Data/Mesonet_2012-2014"
 
 [output]
-timezone = "UTC"          # slot_start (and [period]) in UTC, like the WRF output
+timezone = "UTC"          # like the WRF output
 
 [period]
 start = "2014-02-13 18:00"
 end = "2014-02-14 18:00"
-# Note: the raw data has an outage until file R06373 (2014-02-13 14:31 local = 20:31 UTC), so
-# the first ~2.5 h of this window are no_file slots.
+# Raw data outage until R06373 (2014-02-13 20:31 UTC): the first ~2.5 h are no_file slots
 
 [cadence]
 slot_min = 15             # 2 slots per file; 120-min MRD detection window
@@ -90,13 +89,13 @@ min_tau_its_ratio = 10.0
 [secondary.detection]
 peak_significance_se = 2.0
 min_scale_s = 0.5
-min_tau_s = 7.03125       # the smallest rung (oneyear: 9.375 s)
-max_tau_s = 1800.0        # the top rung, 2 x slot (oneyear: 1200 s)
+min_tau_s = 7.03125       # the smallest rung
+max_tau_s = 1800.0        # the top rung, 2 x slot
 
 [secondary.selection]
 rule = "priority"
 priority = ["heat", "momentum"]
-fallback_tau_s = 900.0    # the slot rung (oneyear: 600 s)
+fallback_tau_s = 900.0    # the slot rung
 
 [tertiary]
 min_coverage = 0.75

@@ -1,96 +1,84 @@
 """
 transform_tower.py
-The modeled TTU tower of a run (its tslist time series and tower_column.nc) as slot values at the tower's boom
-heights, comparable to the tower's slot averages
+A run's modeled tower (tslist profiles and tower_column.nc) as 15-min slot values at the tower's boom heights,
+comparable to the observed tower (load_observations).
 
 Usage:
     import load_results, transform_tower
-    run = load_results.load_run("20131210", "mynn")
-    df = transform_tower.get_tower_df(run)                 # 15-min slots at booms 4-10: "u_4" ... "ustar_10", "pblh", ...
-    df = transform_tower.get_tower_df(run, slot="10min")   # 10-min slots, like the oneyear tower run
+    df = transform_tower.get_tower_df(load_results.load_run("20131210", "mynn"))
 
-Output is wide, one column per variable and boom ("{var}_{boom}", e.g. "ws_4"; ttu_tower's wide table, as in
-load_observations.load_tower_data, names them "{var}_b{boom}", e.g. "ws_mean_b4"), one row per slot [T, T + slot)
-labeled T, the tower's slot_start convention. get_tower_df lists the columns and how each is made.
+Columns are "{var}_{boom}", e.g. "ws_4" (the observed tower's are "{var}_b{boom}"); rows are slots [T, T + 15 min)
+labeled T. Profiles are interpolated linearly in height at each time, without extrapolation: the lowest mass level
+(~4.6 m) leaves booms 4-10, and the fluxes start at the second w level (~9 m). Winds are averaged as u and v, with
+ws and wd from the means.
 
-Heights: profiles are interpolated linearly in height above ground, separately at every time, since the model level
-heights move with time, and not extrapolated. The lowest mass level is at ~4.6 m, so only booms 4-10 are covered
-(booms 1-3 are at 0.9, 2.4 and 4.0 m), and the fluxes start at the second w level (~9 m).
-
-Turbulent fluxes: local K-theory fluxes from the exchange coefficients and the mass-level differences, at the
-interior w levels (k = 2 ... number of mass levels), where the PBL schemes keep K:
-    heat_flux = -K_h (theta_k - theta_k-1) / (z_k - z_k-1)                       <w'theta'>, K m/s
-    momt_flux = K_m sqrt((u_k - u_k-1)^2 + (v_k - v_k-1)^2) / (z_k - z_k-1)      |<u'w'>, <v'w'>|, m2/s2
-These are only the local (down-gradient) part: the nonlocal terms of YSU (countergradient, entrainment), ACM2
-(nonlocal upward mixing) and MYNN-EDMF (mass flux) are not included, so in a convective boundary layer they
-underestimate the total flux. At the ground the fluxes come from the surface layer scheme instead:
-    heat_flux_sfc = hfx / (rho c_p)    momt_flux_sfc = ust^2
-with rho the air density at the lowest mass level. buoy_flux = heat_flux * vpt / theta estimates the buoyancy flux
-<w'theta_v'> by scaling the heat flux with the mean moisture, leaving out the moisture flux term, and
-ustar = sqrt(momt_flux) is a local friction velocity (as in ttu_tower).
-
-Winds: the earth-relative components u and v are interpolated and averaged, and ws and wd are computed from the
-mean components. Interpolating ws or wd directly would be inconsistent with u, v (and wd wraps at 360).
+Fluxes are local K-theory fluxes at the interior w levels:
+    heat_flux = -K_h dtheta/dz          <w'theta'>, K m/s
+    momt_flux = K_m |dU/dz|             |<u'w'>, <v'w'>|, m2/s2
+They leave out the nonlocal terms of YSU, ACM2 and MYNN-EDMF, so they underestimate convective boundary layer fluxes.
 """
 
 import numpy as np
 import pandas as pd
+from ttu_tower import constants
+from ttu_tower.math.polar import vector_to_bearing
+from ttu_tower.physics import thermo
+from ttu_tower.physics.constants import WATER_AIR_MWR
 
 import load_results
-from ttu_tower import constants
-from ttu_tower.physics import thermo
-from ttu_tower.physics.constants import R_CP, REFERENCE_PRESSURE, WATER_AIR_MWR
+from load_results import INTERVAL
 
-HEIGHTS: dict[int, float] = {b: h for b, h in constants.HEIGHTS.items() if b >= 4}  # boom -> m AGL, booms 4-10
+HEIGHTS: dict[int, float] = {b: h for b, h in constants.HEIGHTS.items() if b >= 4}  # boom -> m AGL
 
-AVERAGED_VARS = ["u", "v", "theta", "p", "qv"]  # tslist profiles averaged over each slot, on mass levels (station.z)
-SNAPSHOT_VARS = ["exch_h", "exch_m", "tke_pbl"]  # TowerColumn profiles, on w levels (column.z_w), but MYNN's tke_pbl
-                                                 # is on mass levels; get_tower_df checks each one's shape
-RENAME = {"tke_pbl": "tke"}  # TowerColumn name -> output column prefix, where they differ
+AVERAGED_VARS = ["u", "v", "theta", "p", "qv"]  # tslist profiles, on mass levels
+SNAPSHOT_VARS = ["exch_h", "exch_m", "tke_pbl"]  # TowerColumn profiles, on w levels (MYNN's tke_pbl on mass levels)
+RENAME = {"tke_pbl": "tke"}
 
-# column order of get_tower_df (variables a run does not have, e.g. tke for YSU, are skipped)
+# get_tower_df column order (variables a run lacks, e.g. YSU's tke, are skipped)
 TOWER_DF_ORDER = ["u", "v", "ws", "ws_mean", "wd", "theta", "t", "vpt", "p", "qv", "exch_h", "exch_m", "tke",
                   "heat_flux", "buoy_flux", "momt_flux", "ustar"]
 
-SLOT = pd.Timedelta("15min")  # default averaging slot (the d03 history interval)
-MIN_COVERAGE = 0.75  # fraction of a slot's time series samples a slot mean needs (else NaN)
+MIN_COVERAGE = 0.75  # fraction of a slot's samples a slot mean needs
 
 # WRF's constants (share/module_model_constants.F)
 R_D = 287.0  # J kg-1 K-1
 CP = 7.0 * R_D / 2.0  # J kg-1 K-1
-P0 = 1.0e5  # Pa, reference pressure of theta
-XLV = 2.5e6  # J kg-1, latent heat of vaporization
+P0 = 1.0e5  # Pa
+XLV = 2.5e6  # J kg-1
+
+
+def _temperature(theta, p):
+    """Temperature (K) from theta (K) and p (Pa)."""
+    return theta * (p / P0) ** (R_D / CP)
 
 
 def _to_heights(values: pd.DataFrame, z: pd.DataFrame) -> pd.DataFrame:
-    """time x level values with level heights z (time x level, m AGL, increasing) -> time x boom at HEIGHTS."""
+    """time x level values at heights z (time x level, m AGL, increasing) -> time x boom."""
     targets = np.array(list(HEIGHTS.values()))
     vals, zz = values.to_numpy(dtype=float), z.to_numpy(dtype=float)
     out = np.array([np.interp(targets, zz[i], vals[i], left=np.nan, right=np.nan) for i in range(len(vals))])
     return pd.DataFrame(out, index=values.index, columns=pd.Index(list(HEIGHTS), name="boom"))
 
 
-def _to_times(df: pd.DataFrame, times: pd.DatetimeIndex) -> pd.DataFrame:
-    """Rows of df (indexed by increasing time) linearly interpolated to times; NaN outside df's time range."""
-    seconds = lambda t: (t - df.index[0]) / pd.Timedelta("1s")
-    x, t = seconds(df.index), seconds(times)
-    return pd.DataFrame({c: np.interp(t, x, df[c], left=np.nan, right=np.nan) for c in df}, index=times)
+def _at_centres(snapshots: pd.DataFrame, slots: pd.DatetimeIndex) -> pd.DataFrame:
+    """15-min snapshots at the slot centres T + 7.5 min: the mean of those at T and T + 15 min. The initial snapshot
+    is left out, since the PBL and surface layer schemes have not run yet."""
+    s = snapshots.iloc[1:]
+    return ((s + s.shift(-1)) / 2).reindex(slots)
 
 
 def _add_wind(frames: dict[str, pd.DataFrame]) -> None:
-    frames["ws"] = load_results.wind_speed(frames["u"], frames["v"])
-    frames["wd"] = load_results.wind_direction(frames["u"], frames["v"])
+    frames["ws"], frames["wd"] = vector_to_bearing(frames["u"], frames["v"])
 
 
-def _slot_means(station: load_results.Station, slot: pd.Timedelta) -> dict[str, pd.DataFrame]:
-    """{var: slot x boom} means of AVERAGED_VARS and the scalar speed ws_mean over [T, T + slot), labeled T (each
-    sample interpolated to the booms first), with ws, wd from the mean u, v. A mean is NaN with fewer than
-    MIN_COVERAGE of the slot's samples; slots with no mean at all (the one-sample slot at the last output) are dropped."""
+def _slot_means(station: load_results.Station) -> dict[str, pd.DataFrame]:
+    """{var: slot x boom} means of AVERAGED_VARS and ws_mean, with ws and wd from the mean u and v. Slots without
+    any mean (the one-sample slot at the last output) are dropped."""
     frames = {var: _to_heights(getattr(station, var), station.z) for var in AVERAGED_VARS}
-    frames["ws_mean"] = load_results.wind_speed(frames["u"], frames["v"])
+    frames["ws_mean"] = np.hypot(frames["u"], frames["v"])
     times = station.z.index
-    needed = MIN_COVERAGE * (slot / times.to_series().diff().median())
-    keys = times.floor(slot)
+    needed = MIN_COVERAGE * (INTERVAL / times.to_series().diff().median())
+    keys = times.floor(INTERVAL)
     means = {}
     for var, df in frames.items():
         groups = df.groupby(keys)
@@ -102,15 +90,14 @@ def _slot_means(station: load_results.Station, slot: pd.Timedelta) -> dict[str, 
 
 
 def _flux_profiles(column: load_results.TowerColumn) -> dict[str, pd.DataFrame]:
-    """Local K-theory fluxes (module docstring) at the interior w levels 2 ... n (n = number of mass levels), as
-    time x level frames: "heat_flux" (K m/s), "momt_flux" (m2/s2), and "z" (their heights, m AGL, from column.z_w)."""
+    """heat_flux and momt_flux (time x level) at w levels 2 ... n (n mass levels), and their heights z."""
     z = column.z.to_numpy(dtype=float)
-    dz = np.diff(z, axis=1)  # entry k - 2 (0-based) is between mass levels k - 1 and k, i.e. at w level k
+    dz = np.diff(z, axis=1)  # column k - 2 (0-based) is at w level k
     n = z.shape[1]
     dtheta = np.diff(column.theta.to_numpy(dtype=float), axis=1)
     du = np.diff(column.u.to_numpy(dtype=float), axis=1)
     dv = np.diff(column.v.to_numpy(dtype=float), axis=1)
-    k_h = column.exch_h.to_numpy(dtype=float)[:, 1:n]  # w levels 2 ... n
+    k_h = column.exch_h.to_numpy(dtype=float)[:, 1:n]
     k_m = column.exch_m.to_numpy(dtype=float)[:, 1:n]
 
     def frame(data):
@@ -122,66 +109,50 @@ def _flux_profiles(column: load_results.TowerColumn) -> dict[str, pd.DataFrame]:
 
 
 def _surface(column: load_results.TowerColumn) -> pd.DataFrame:
-    """Surface fluxes from the surface layer scheme, with rho, theta and qv at the lowest mass level, and pblh:
-        heat_flux_sfc       hfx / (rho c_p), <w'theta'> (K m/s)
-        buoy_flux_sfc       heat_flux_sfc * vpt / theta, the same estimate as buoy_flux (no moisture flux term)
-        real_buoy_flux_sfc  the full <w'theta_v'> (K m/s): buoy_flux_sfc + theta (1/eps - 1) / (1 + r)^2 <w'r'>, the
-                            linearization of ttu_tower's exact vpt = theta (1 + r/eps) / (1 + r), with the vapor flux
-                            <w'r'> = lh / (rho L_v)
-        momt_flux_sfc       ust^2 (m2/s2)
-        pblh                PBL height (m)
-    WRF's R_d, c_p and L_v, the constants WRF itself relates hfx and lh to the kinematic fluxes with."""
+    """Surface layer scheme values, with rho, theta and qv (r) at the lowest mass level:
+        heat_flux_sfc       hfx / (rho c_p), K m/s
+        buoy_flux_sfc       heat_flux_sfc * vpt / theta, K m/s
+        real_buoy_flux_sfc  buoy_flux_sfc + theta (1/eps - 1) / (1 + r)^2 <w'r'>, with <w'r'> = lh / (rho L_v): the
+                            full <w'theta_v'> (K m/s), linearized from ttu_tower's vpt
+        momt_flux_sfc       ust^2, m2/s2
+        pblh                m"""
     p, theta, qv = column.p[1], column.theta[1], column.qv[1]
-    t = theta * (p / P0) ** (R_D / CP)
-    rho = p / (R_D * thermo.virtual_temperature(t, qv))
+    rho = p / (R_D * thermo.virtual_temperature(_temperature(theta, p), qv))
     heat_flux = column.sfc["hfx"] / (rho * CP)
     buoy_flux = heat_flux * thermo.virtual_potential_temperature(theta, qv) / theta
-    vapor_flux = column.sfc["lh"] / (rho * XLV)  # kg/kg m/s
+    vapor_flux = column.sfc["lh"] / (rho * XLV)
     real_buoy_flux = buoy_flux + theta * (1.0 / WATER_AIR_MWR - 1.0) / (1.0 + qv) ** 2 * vapor_flux
     return pd.DataFrame({"heat_flux_sfc": heat_flux, "buoy_flux_sfc": buoy_flux, "real_buoy_flux_sfc": real_buoy_flux,
                          "momt_flux_sfc": column.sfc["ust"] ** 2, "pblh": column.sfc["pblh"]})
 
 
-def get_tower_df(run: load_results.RunOutput, slot=SLOT) -> pd.DataFrame:
-    """The modeled tower at booms 4-10, one row per slot [T, T + slot) labeled T (15 min by default):
-        u, v, theta, p, qv   means of the 5-s tslist profiles over the slot (each sample interpolated to the booms,
-                             then averaged; NaN with less than MIN_COVERAGE of the slot's samples)
-        ws, wd               vector-mean speed and direction, from the mean u and v (the tower's ws_vector_mean)
-        ws_mean              scalar-mean speed (the tower's ws_mean)
-        t                    temperature (K), from the mean theta and p
-        vpt                  virtual potential temperature (K), from the mean theta and qv (ttu_tower.physics.thermo,
-                             exact form)
-    The variables only in tower_column.nc (instantaneous, every 15 min) are interpolated linearly in time to the
-    slot centre T + slot / 2 from the snapshots around it (for 15-min slots, the mean of the snapshots at T and
-    T + 15 min), and are NaN where the snapshots do not bracket the centre:
-        exch_h, exch_m, tke, heat_flux, momt_flux   at the booms (tke only for TKE schemes)
-        buoy_flux   heat_flux * vpt / theta (K m/s), with the slot-mean vpt and theta
-        ustar       sqrt(momt_flux) (m/s)
-        heat_flux_sfc, buoy_flux_sfc, real_buoy_flux_sfc, momt_flux_sfc, pblh   see _surface
-        ustar_sfc   sqrt(momt_flux_sfc) (m/s)
-    The first snapshot, the initial state written before the first model step, is left out: the PBL and surface
-    layer schemes have not run yet, so e.g. TKE, the exchange coefficients and the fluxes are not set. The first
-    slot therefore has its means but NaN for the snapshot variables."""
-    slot = pd.Timedelta(slot)
+def get_tower_df(run: load_results.RunOutput) -> pd.DataFrame:
+    """The modeled tower at booms 4-10, one row per slot:
+        u, v, theta, p, qv      means of the 5-s tslist profiles (NaN with less than MIN_COVERAGE of the samples)
+        ws, wd                  from the mean u and v (as the tower's ws_vector_mean)
+        ws_mean                 scalar-mean speed
+        t, vpt                  from the mean theta, p and qv
+        exch_h, exch_m, tke     tower_column.nc at the slot centre (tke for TKE schemes only)
+        heat_flux, momt_flux    the same
+        buoy_flux               heat_flux * vpt / theta, leaving out the moisture flux
+        ustar                   sqrt(momt_flux)
+    and at the surface, at the slot centre: _surface's columns and ustar_sfc = sqrt(momt_flux_sfc). The first slot
+    has no tower_column.nc values (see _at_centres)."""
     column = run.tower.column
-    df = _slot_means(run.tower, slot)
+    df = _slot_means(run.tower)
     slots = df["u"].index
-    centres = slots + slot / 2
-
-    def at_centres(snapshots):  # without the initial state
-        return _to_times(snapshots.iloc[1:], centres).set_axis(slots, axis=0)
 
     for var in SNAPSHOT_VARS:
         values = getattr(column, var)
         if values is not None:
-            z = column.z_w if values.shape[1] == column.z_w.shape[1] else column.z  # w or mass levels
-            df[RENAME.get(var, var)] = at_centres(_to_heights(values, z))
+            z = column.z_w if values.shape[1] == column.z_w.shape[1] else column.z
+            df[RENAME.get(var, var)] = _at_centres(_to_heights(values, z), slots)
     fluxes = _flux_profiles(column)
     for var in ("heat_flux", "momt_flux"):
-        df[var] = at_centres(_to_heights(fluxes[var], fluxes["z"]))
-    sfc = at_centres(_surface(column))
+        df[var] = _at_centres(_to_heights(fluxes[var], fluxes["z"]), slots)
+    sfc = _at_centres(_surface(column), slots)
 
-    df["t"] = df["theta"] * (df["p"] / 1000.0 / REFERENCE_PRESSURE) ** R_CP  # inverse of thermo.potential_temperature
+    df["t"] = _temperature(df["theta"], df["p"])
     df["vpt"] = thermo.virtual_potential_temperature(df["theta"], df["qv"])
     df["buoy_flux"] = df["heat_flux"] * df["vpt"] / df["theta"]
     df["ustar"] = np.sqrt(df["momt_flux"])
@@ -192,7 +163,6 @@ def get_tower_df(run: load_results.RunOutput, slot=SLOT) -> pd.DataFrame:
 
 
 if __name__ == "__main__":
-    run = load_results.load_run("20131210", "mynn")
-    df = get_tower_df(run)
+    df = get_tower_df(load_results.load_run("20131210", "mynn"))
     print(df.filter(regex=r"^(ws|wd|theta|vpt|tke)_").iloc[:5].round(3).to_string())
     print(df.filter(regex=r"^(heat_flux|buoy_flux|ustar)_|^pblh$").iloc[:5].to_string())

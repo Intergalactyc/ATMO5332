@@ -1,25 +1,18 @@
 """
-Create and prepare one WRF run directory per (event, PBL scheme): OUTDIR/<event>_<scheme>/
-
-Each run directory gets:
-    namelist.input  from configs/namelist.input.template, with the run dates and PBL scheme filled in
-    tslist          the 200 m tower plus the mesonet stations (meta/wtm_2013_station_locations.csv) inside the
-                    bounding box; each station's prefix is the first 5 letters of its archive_name (first 4 plus
-                    the last letter when two stations share the first 5, e.g. AMARN/AMARE)
+Create one WRF run directory per (event, PBL scheme): OUTDIR/<event>_<scheme>/, containing
+    namelist.input  configs/namelist.input.template with the run dates and PBL scheme set
+    tslist          the tower plus the mesonet stations within BOUNDS
     iofields.txt    copied from configs/
-and, if given (on HPCC):
-    --wrf-run DIR   symlinks to the WRF run directory's executables and lookup tables
-    --met-em DIR    symlinks to the event's met_em files; "{event}" in DIR is replaced by the event date
+and, if given,
+    --wrf-run DIR   links to the WRF run directory's executables and tables
+    --met-em DIR    links to the event's met_em files ("{event}" in DIR is replaced by the event date)
 
 Usage examples:
     python prepare_runs.py ./runs                                  (all events, core schemes)
-    python prepare_runs.py ./runs --events 20131210 20140125 --schemes ysu mynn acm2 myj
-    python prepare_runs.py ./runs_test --events 20131210 --schemes ysu --run-hours 3
-    python prepare_runs.py ./runs --wrf-run /lustre/work/USER/WRFV4/run --met-em ./wps/{event}    (after WPS)
-    python prepare_runs.py ./runs --bounds 32.5 34.5 -103.0 -101.0
+    python prepare_runs.py ./testruns --events 20131210 --schemes ysu --run-hours 3
+    python prepare_runs.py ./runs --wrf-run /lustre/work/USER/WRFV4/run --met-em ./wps/{event}
 
-Existing run directories are only updated with --force, which replaces the files and links made here and leaves
-anything else (e.g. WRF output) alone.
+--force updates existing run directories, replacing only the files and links made here.
 """
 
 import argparse
@@ -36,7 +29,7 @@ TEMPLATE = ROOT / "configs" / "namelist.input.template"
 IOFIELDS = ROOT / "configs" / "iofields.txt"
 STATIONS = ROOT / "meta" / "wtm_2013_station_locations.csv"
 
-# Events are named by the morning (UTC date) of the LLJ; each run starts 18 UTC the day prior
+# Event ID: UTC date of the LLJ morning
 EVENTS = [
     "20131210",  # key
     "20140125",  # key
@@ -44,11 +37,10 @@ EVENTS = [
     "20140122",  # backup
     "20140214",  # backup
 ]
-INIT_OFFSET = timedelta(hours=-6)  # 00 UTC on the event date minus 6 h = 18 UTC the day prior
+INIT_OFFSET = timedelta(hours=-6)  # runs start 18 UTC the day before the event date
 
-# bl_pbl_physics / sf_sfclay_physics pairs
-# sfclay 1 is used wherever the scheme accepts it.
-# "extra" lists any other entries a scheme needs as (group, key, value, per_domain)
+# bl_pbl_physics, sf_sfclay_physics (1 wherever the scheme allows it), and any other settings needed as
+# (group, key, value, per_domain)
 SCHEMES = {
     "ysu":      {"pbl": 1,  "sfclay": 1},
     "mynn":     {"pbl": 5,  "sfclay": 1, "extra": [("physics", "bl_mynn_closure", "2.5", False)]},
@@ -62,7 +54,7 @@ SCHEMES = {
     "eeps":     {"pbl": 16, "sfclay": 1},
     "keps":     {"pbl": 17, "sfclay": 1},
     "mrf":      {"pbl": 99, "sfclay": 1},
-    "sms3dtke": {"pbl": 0,  "sfclay": 1, "extra": [("dynamics", "km_opt", 5, True), ("dynamics", "diff_opt", 2, True)]}, # SMS-3DTKE: 3D scale-adaptive TKE closure
+    "sms3dtke": {"pbl": 0,  "sfclay": 1, "extra": [("dynamics", "km_opt", 5, True), ("dynamics", "diff_opt", 2, True)]},
     "myj":      {"pbl": 2,  "sfclay": 2},
     "gfs":      {"pbl": 3,  "sfclay": 3},
     "qnse":     {"pbl": 4,  "sfclay": 4},
@@ -70,18 +62,18 @@ SCHEMES = {
 }
 CORE_SCHEMES = ["ysu", "mynn", "acm2"]
 
-TOWER = ("RTC 200m Tower", "tower", 33.610, -102.050)
-BOUNDS = [32.10, 35.10, -103.67, -100.11] # latitude and longitude limits of the bounding box for mesonet stations in ROI
+TOWER = ("RTC 200m Tower", "tower", 33.610, -102.050)  # tslist (name, prefix, lat, lon)
+BOUNDS = [32.10, 35.10, -103.67, -100.11]  # analysis ROI: lat min, lat max, lon min, lon max
 
-# WRF (share/wrf_tsin.F, v4.5.1) reads the second header line with FMT='(32X,A7,2X,A7)' and needs "LAT" and "LON"
-# in those fields, then reads each location with FMT='(A25,1X,A5,1X,F7.3,1X,F8.3)'
+# WRF (share/wrf_tsin.F) needs "LAT" and "LON" in the second header line at FMT='(32X,A7,2X,A7)', and reads
+# each location with FMT='(A25,1X,A5,1X,F7.3,1X,F8.3)'
 TSLIST_HEADER = [
     "#-----------------------------------------------#",
     "# 24 characters for name | pfx |  LAT  |   LON  |",
     "#-----------------------------------------------#",
 ]
 
-# Not linked from the WRF run directory: per-run inputs made here, and output left over from earlier runs there
+# WRF run directory files not to link: per-run inputs made here, and output of earlier runs
 WRF_RUN_SKIP = re.compile(r"namelist\..*|tslist|iofields.*|met_em\..*|wrf(input|bdy|out|rst)_.*|rsl\..*")
 
 
@@ -131,13 +123,20 @@ def make_namelist(template, event, scheme, run_hours=None):
     return lines, start, end
 
 
-def read_stations(path):
-    """(name, prefix, lat, lon) for each station in the official location list."""
-    with open(path, newline="") as f:
+def read_stations():
+    """(archive_name, prefix, lat, lon) of each station in STATIONS. The prefix is the name's first 5 letters, or its
+    first 4 and last where 5 are ambiguous (AMARN/AMARE)."""
+    with open(STATIONS, newline="") as f:
         rows = list(csv.DictReader(f))
     words = [re.sub(r"[^A-Za-z0-9]", "", row["archive_name"]).upper() for row in rows]
     pfxs = [w[:5] if sum(x[:5] == w[:5] for x in words) == 1 else w[:4] + w[-1] for w in words]
     return [(row["archive_name"], pfx, float(row["latitude"]), float(row["longitude"])) for row, pfx in zip(rows, pfxs)]
+
+
+def select_stations():
+    """read_stations() within BOUNDS: the mesonet stations in the tslist."""
+    lat_min, lat_max, lon_min, lon_max = BOUNDS
+    return [s for s in read_stations() if lat_min <= s[2] <= lat_max and lon_min <= s[3] <= lon_max]
 
 
 def make_tslist(locations):
@@ -149,7 +148,7 @@ def make_tslist(locations):
 
 
 def write_lines(path, lines):
-    with open(path, "w", newline="\n") as f:  # LF endings even when run on Windows
+    with open(path, "w", newline="\n") as f:  # LF even on Windows
         f.write("\n".join(lines) + "\n")
 
 
@@ -161,7 +160,7 @@ def link(source, path):
 
 
 def event_date(text):
-    datetime.strptime(text, "%Y%m%d")  # ValueError -> argparse reports an invalid event
+    datetime.strptime(text, "%Y%m%d")  # argparse reports the ValueError
     return text
 
 
@@ -173,11 +172,6 @@ def parse_args():
     parser.add_argument("--schemes", nargs="+", default=CORE_SCHEMES, choices=sorted(SCHEMES),
                         help=f"PBL schemes (default: {' '.join(CORE_SCHEMES)})")
     parser.add_argument("--run-hours", type=int, help="override the template run length, e.g. 3 for a test run")
-    parser.add_argument("--stationinfo", type=pathlib.Path, default=STATIONS,
-                        help="station location list (default: %(default)s)")
-    parser.add_argument("--bounds", type=float, nargs=4, default=BOUNDS,
-                        metavar=("LAT_MIN", "LAT_MAX", "LON_MIN", "LON_MAX"),
-                        help=f"mesonet station bounding box (default: {' '.join(map(str, BOUNDS))})")
     parser.add_argument("--wrf-run", type=pathlib.Path, help="WRF run directory to symlink executables and tables from")
     parser.add_argument("--met-em", metavar="DIR", help="directory of each event's met_em files to symlink; "
                                                         "{event} is replaced by the event date")
@@ -189,8 +183,7 @@ def main():
     args = parse_args()
     template = TEMPLATE.read_text().splitlines()
 
-    lat_min, lat_max, lon_min, lon_max = args.bounds
-    stations = [s for s in read_stations(args.stationinfo) if lat_min <= s[2] <= lat_max and lon_min <= s[3] <= lon_max]
+    stations = select_stations()
     tslist = make_tslist([TOWER] + stations)
     # WRF silently ignores locations beyond max_ts_locs (default 5)
     max_ts_locs = get_int(template, "domains", "max_ts_locs", 5)
