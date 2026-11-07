@@ -105,6 +105,22 @@ Wrfout files themselves are not packed or transferred in the above.
 - Python packages: `numpy`, `pandas`, `matplotlib`, `netcdf4`, `ttu-tower-processing`, `wtxmeso`, `scipy`
     - `ttu-tower-processing` is available at https://github.com/Intergalactyc/ttu-tower-processing
     - `wtxmeso` is available at https://github.com/Intergalactyc/wtxmesonet
+- Data:
+    - West Texas Mesonet data for each of the five event dates (18 UTC the day prior to 18 UTC the day of), from all stations (really, from all 58 located in the determined analysis ROI given above)
+    - TTU 200 m tower data for each of the five event dates (18 UTC the day prior to 18 UTC the day of)
+
+## Processing 200 m tower data
+Process the data using the `ttu-tower-processing` package ([GitHub](https://github.com/Intergalactyc/ttu-tower-processing)).
+- Copy the templates in `configs/tower/templates` into `configs/tower` and change the relevant paths: raw_dirs should point to a directory/directories containing the relevant tower data, and mesonet_dirs (optional) should point to REES station data from at least the given periods
+- Process each event's data:
+
+```bash
+ttu-runall configs/tower/llj_20131210.toml
+ttu-runall configs/tower/llj_20131216.toml
+ttu-runall configs/tower/llj_20140122.toml
+ttu-runall configs/tower/llj_20140125.toml
+ttu-runall configs/tower/llj_20140214.toml
+```
 
 # Resources
 - [ERA5 original paper](https://rmets.onlinelibrary.wiley.com/doi/10.1002/qj.4803)
