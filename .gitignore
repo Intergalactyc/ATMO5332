@@ -33,3 +33,6 @@ runs/
 testruns/
 
 *.tar.gz
+
+configs/*.toml
+!configs/templates/*.toml
