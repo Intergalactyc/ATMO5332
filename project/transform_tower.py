@@ -3,8 +3,8 @@ tower.py
 Interpolate modeled tower-point profiles from model levels to the TTU tower's boom heights
 
 Usage:
-    import loader, tower
-    run = loader.load_run("20131210", "mynn")
+    import load_results, tower
+    run = load_results.load_run("20131210", "mynn")
     df = tower.get_tower_df(run)                       # tower_column.nc (15 min) at booms 4-10 plus derived
                                                        # quantities: "u_4" ... "ustar_10", "heat_flux_sfc", "pblh", ...
     df = tower.interpolate_column(run.tower.column)   # only the interpolated tower_column.nc variables
@@ -37,7 +37,7 @@ interpolated components. Interpolating ws or wd directly would be inconsistent w
 import numpy as np
 import pandas as pd
 
-import loader
+import ATMO5332.project.load_results as load_results
 from ttu_tower import constants
 from ttu_tower.physics import thermo
 from ttu_tower.physics.constants import R_CP, REFERENCE_PRESSURE, WATER_AIR_MWR
@@ -71,7 +71,7 @@ def interpolate_to_heights(values: pd.DataFrame, z: pd.DataFrame, heights: dict[
     return pd.DataFrame(out, index=values.index, columns=pd.Index(list(heights), name="boom"))
 
 
-def flux_profiles(column: loader.TowerColumn) -> dict[str, pd.DataFrame]:
+def flux_profiles(column: load_results.TowerColumn) -> dict[str, pd.DataFrame]:
     """Local K-theory fluxes at the interior w levels 2 ... n (n = number of mass levels), as time x level_w
     frames: "heat_flux" (K m/s), "momt_flux" (m2/s2), and "z" (their heights, m AGL, from column.z_w)."""
     z = column.z.to_numpy(dtype=float)
@@ -98,7 +98,7 @@ def temperature(theta, p):
     return theta * (p / 1000.0 / REFERENCE_PRESSURE) ** R_CP
 
 
-def surface_fluxes(column: loader.TowerColumn) -> pd.DataFrame:
+def surface_fluxes(column: load_results.TowerColumn) -> pd.DataFrame:
     """Surface fluxes from the surface layer scheme, with rho, theta and qv at the lowest mass level:
         heat_flux_sfc       hfx / (rho c_p), <w'theta'> (K m/s)
         buoy_flux_sfc       heat_flux_sfc * vpt / theta, the same estimate as buoy_flux (no moisture flux term)
@@ -125,11 +125,11 @@ def _wide(interpolated: dict[str, pd.DataFrame]) -> pd.DataFrame:
 
 
 def _add_wind(interpolated: dict[str, pd.DataFrame]) -> None:
-    interpolated["ws"] = loader.wind_speed(interpolated["u"], interpolated["v"])
-    interpolated["wd"] = loader.wind_direction(interpolated["u"], interpolated["v"])
+    interpolated["ws"] = load_results.wind_speed(interpolated["u"], interpolated["v"])
+    interpolated["wd"] = load_results.wind_direction(interpolated["u"], interpolated["v"])
 
 
-def _interpolate_column(column: loader.TowerColumn, heights: dict[int, float]) -> dict[str, pd.DataFrame]:
+def _interpolate_column(column: load_results.TowerColumn, heights: dict[int, float]) -> dict[str, pd.DataFrame]:
     """{var: time x boom} for interpolate_column."""
     interpolated = {var: interpolate_to_heights(getattr(column, var), column.z, heights) for var in MASS_LEVEL_VARS}
     _add_wind(interpolated)
@@ -144,7 +144,7 @@ def _interpolate_column(column: loader.TowerColumn, heights: dict[int, float]) -
     return interpolated
 
 
-def interpolate_column(column: loader.TowerColumn, heights: dict[int, float] = COLUMN_HEIGHTS) -> pd.DataFrame:
+def interpolate_column(column: load_results.TowerColumn, heights: dict[int, float] = COLUMN_HEIGHTS) -> pd.DataFrame:
     """All height-dependent tower_column.nc variables at the boom heights (booms 4-10 by default; tke only for
     TKE schemes), plus ws and wd from the interpolated u and v, and heat_flux and momt_flux from flux_profiles."""
     return _wide(_interpolate_column(column, heights))
@@ -155,7 +155,7 @@ TOWER_DF_ORDER = ["u", "v", "ws", "wd", "theta", "t", "vpt", "p", "qv", "exch_h"
                   "heat_flux", "buoy_flux", "momt_flux", "ustar"]
 
 
-def get_tower_df(run: loader.RunOutput, heights: dict[int, float] = COLUMN_HEIGHTS,
+def get_tower_df(run: load_results.RunOutput, heights: dict[int, float] = COLUMN_HEIGHTS,
                  drop_initial: bool = True) -> pd.DataFrame:
     """The tower column of a run at the boom heights (interpolate_column), plus, per boom:
         t           temperature (K), from theta and p
@@ -179,7 +179,7 @@ def get_tower_df(run: loader.RunOutput, heights: dict[int, float] = COLUMN_HEIGH
     return out.iloc[1:] if drop_initial else out
 
 
-def interpolate_profiles(station: loader.Station, heights: dict[int, float] = HEIGHTS) -> pd.DataFrame:
+def interpolate_profiles(station: load_results.Station, heights: dict[int, float] = HEIGHTS) -> pd.DataFrame:
     """The .UU/.VV/.WW/.TH/.PR/.QV profiles of a Station (e.g. run.tower) at the boom heights, plus ws and wd
     from the interpolated u and v. No exchange coefficients or TKE: they are not in the time series files."""
     interpolated = {var: interpolate_to_heights(getattr(station, var), station.z, heights) for var in PROFILE_VARS}
@@ -192,7 +192,7 @@ if __name__ == "__main__":
     DATE = "20131210"
     SCHEME = "mynn"
 
-    run = loader.load_run(DATE, SCHEME)
+    run = load_results.load_run(DATE, SCHEME)
     df = get_tower_df(run)
     print(df.filter(regex=r"^(ws|wd|theta|vpt|tke)_").iloc[:5].round(3).to_string())
     print(df.filter(regex=r"^(heat_flux|buoy_flux|ustar)_|^pblh$").iloc[:5].to_string())

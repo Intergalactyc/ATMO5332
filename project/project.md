@@ -102,9 +102,10 @@ Wrfout files themselves are not packed or transferred in the above.
 
 # Analysis
 ## Requirements
-- Python packages: `numpy`, `pandas`, `matplotlib`, `netcdf4`, `ttu-tower-processing`
+- Python packages: `numpy`, `pandas`, `matplotlib`, `netcdf4`, `ttu-tower-processing`, `wtxmeso`
     - `ttu-tower-processing` is available at https://github.com/Intergalactyc/ttu-tower-processing
-    - Requires Python version 3.13 (make sure you have it installed and use e.g. `python3.13 -m venv .venv313` or similar to create a virtual environment)
+    - `wtxmeso` is available at https://github.com/Intergalactyc/wtxmesonet
+    - Requires Python version 3.13 (make sure you have it installed and use e.g. `python3.13 -m venv .venv313` or similar to create a virtual environment). Other versions (whether earlier or later) will not work.
 
 # Resources
 - [ERA5 original paper](https://rmets.onlinelibrary.wiley.com/doi/10.1002/qj.4803)
