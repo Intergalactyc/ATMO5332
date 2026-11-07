@@ -34,5 +34,5 @@ testruns/
 
 *.tar.gz
 
-configs/*.toml
-!configs/templates/*.toml
+project/configs/tower/*.toml
+!project/configs/tower/templates/*.toml
