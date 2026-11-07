@@ -1,8 +1,3 @@
-# TTU 200 m tower, LLJ event 20140125: 2014-01-24 18:00 to 2014-01-25 18:00 UTC (18 UTC the day before to 18 UTC on the
-# event date, the WRF run period), at 15-min slots to match the runs' 15-min history output.
-# Run with:  ttu-runall configs/tower/llj_20140125.toml
-# Everything outside [output], [period], [cadence] and the tau settings matches the "oneyear" run
-# (ttu-tower-processing configs/templates/oneyear.toml).
 tag = "llj_20140125"
 
 [paths]
