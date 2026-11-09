@@ -4,9 +4,9 @@ Load an event's observations: the TTU 200 m tower (ttu-tower-processing) and the
 
 Usage:
     import load_observations as obs
-    tower = obs.load_tower_data("20131210")       # TowerObservations
-    tower.df                                      # ttu_tower's wide table, indexed by slot_start
-    tower.profile("ws_mean")                      # time x boom, from the "ws_mean_b{boom}" columns
+    tower = obs.load_tower_data("20131210")       # structs.TowerData, as transform_tower.get_tower_model's
+    tower["ws"]                                   # slot x boom
+    tower.at("2013-12-10 06:00")                  # boom x [height, *variables], for a profile
     meso = obs.load_mesonet_data("20131210")      # MesonetObservations
     abern = meso.stations["ABERN"]                # tslist prefix, as in load_results
     abern.df                                      # QC'd MESONET_COLUMNS every 15 min
@@ -15,10 +15,12 @@ Usage:
     abern.flags["stuck"]                          # wtxmeso.qc flags of a test, on raw's columns
     meso.qc_summary()                             # values each test flagged, per station and raw column
 
-Times are naive UTC. An event's window runs from 18 UTC the day before the event date to 18 UTC on it.
+Times are naive UTC; pressures are in hPa. An event's window runs from 18 UTC the day before the event date to 18 UTC
+on it.
 
-Tower: the event's own ttu-tower-processing run, tagged "llj_<event>" (configs/tower/). Its 15-min slot averages are
-labeled by slot start, so a slot labeled T is centred 7.5 min after the model output at T. The window holds 96 slots.
+Tower: the event's own ttu-tower-processing run, tagged "llj_<event>" (configs/tower/), reduced to the variables with
+model counterparts. Its 15-min slot averages are labeled by slot start, so a slot labeled T is centred
+7.5 min after the model output at T. The window holds 96 slots; missing ones are NaN.
 
 Mesonet: MESONET_DIR/<start>_<end>/ (YYYYmmddHHMM), one folder per event, for the tslist's stations
 (prepare_runs.select_stations); those without data are listed in MesonetObservations.missing. QC (wtxmeso.qc): values
@@ -36,7 +38,6 @@ import numpy as np
 import pandas as pd
 
 import ttu_tower
-from ttu_tower import constants as tower_constants
 from ttu_tower.io import store
 from ttu_tower.math.polar import bearing_to_vector, vector_to_bearing
 from ttu_tower.physics import thermo
@@ -45,66 +46,52 @@ from wtxmeso import qc
 from wtxmeso.station import Station as WtxStation
 
 import prepare_runs
-from load_results import INTERVAL
+from structs import (TOWER_HEIGHTS, TOWER_VARIABLES, TowerData, centred_means, event_window, mesonet_times,
+                     tower_slots)
 
-TOWER_HEIGHTS: dict[int, float] = tower_constants.HEIGHTS  # boom -> m AGL
+# Observed TOWER_VARIABLES: ttu_tower wide-table column of boom b, flux variant v. heat_flux has none (the sonic gives
+# <w'theta_v'>); load_tower_data adds momt_flux = ustar^2. Slow sensors give theta (pt), t, vpt, p and qv (r);
+# exch_h = -<w'theta_v'> / dvpt/dz and exch_m is shear production / shear^2; rig is of ttu_tower's first stencil,
+# log_linear (ttu_tower output-schema.md).
+TOWER_OBSERVED = {"u": "ue_mean_b{b}", "v": "vn_mean_b{b}", "ws": "ws_vector_mean_b{b}", "ws_mean": "ws_mean_b{b}",
+                  "wd": "wd_mean_b{b}", "theta": "pt_b{b}", "t": "t_b{b}", "vpt": "vpt_b{b}", "p": "p_b{b}",
+                  "qv": "r_b{b}", "exch_h": "kh_b{b}_{v}", "exch_m": "km_b{b}_{v}", "tke": "tke_b{b}_{v}",
+                  "buoy_flux": "wvpts_cov_b{b}_{v}", "ustar": "ustar_b{b}_{v}",
+                  "obukhov_length": "obukhov_length_b{b}_{v}", "rig": "rig_b{b}"}
+
 MESONET_DIR = Path(os.environ.get("MESONET_DIR", Path.home() / "Data" / "Mesonet_LLJs"))
 
 # Standardized mesonet columns, named as in load_results' Station.df
 MESONET_COLUMNS = ["t",     # 2 m temperature (K)
                    "q",     # 1.5 m water vapor mixing ratio (kg/kg)
-                   "psfc",  # station pressure (Pa)
+                   "psfc",  # station pressure (hPa)
                    "u",     # 10 m west-east wind (m/s)
                    "v",     # 10 m south-north wind (m/s)
                    "ws",    # 10 m scalar-mean wind speed (m/s)
                    "wd"]    # 10 m wind direction (degrees from)
 
 
-def event_window(event: str) -> tuple[pd.Timestamp, pd.Timestamp]:
-    """(start, end) of an event's window."""
-    start = pd.to_datetime(event, format="%Y%m%d") + prepare_runs.INIT_OFFSET
-    return start, start + pd.Timedelta(hours=24)
-
-
 # ---------------------------------------------------------------------------------------------------------------
 # Tower
 # ---------------------------------------------------------------------------------------------------------------
 
-@dataclass
-class TowerObservations:
-    event : str
-    start : pd.Timestamp
-    end : pd.Timestamp
-    df : pd.DataFrame = field(repr=False)  # wide table, one row per slot, indexed by slot_start
-
-    def profile(self, var: str) -> pd.DataFrame:
-        """time x boom frame of the "{var}_b{boom}" columns. A variant suffix goes after the boom: "tke_mrd" gives
-        the tke_b{boom}_mrd columns."""
-        cols = {boom: self.df[c] for boom in TOWER_HEIGHTS if (c := _with_variant(var, boom)) in self.df.columns}
-        if not cols:
-            raise KeyError(f"no tower columns for {var!r} (expected e.g. {_with_variant(var, 4)})")
-        return pd.DataFrame(cols).rename_axis(columns="boom")
-
-
-def _with_variant(var: str, boom: int) -> str:
-    for variant in ("_mrd_unexcised", "_mrd", "_naive"):
-        if var.endswith(variant):
-            return f"{var[:-len(variant)]}_b{boom}{variant}"
-    return f"{var}_b{boom}"
-
-
-def load_tower_data(event: str, columns: list[str] | None = None) -> TowerObservations:
-    """The tower's slots in the event window. columns limits the wide-table columns read."""
-    start, end = event_window(event)
+def load_tower_data(event: str, variant: str = "mrd") -> TowerData:
+    """The observed tower: TOWER_OBSERVED at the booms of TOWER_HEIGHTS, with the turbulence quantities (exch_h ...
+    ustar, obukhov_length) of ttu_tower's variant "mrd", "mrd_unexcised" or "naive"."""
     wide_dir = ttu_tower.find_run(f"llj_{event}") / "tertiary" / "wide"
     paths = sorted(wide_dir.glob("*.parquet"))
     if not paths:
         raise FileNotFoundError(f"no tower wide files in {wide_dir}")
-    if columns is not None:
-        columns = ["slot_start"] + [c for c in columns if c != "slot_start"]
-    df = store.read_paths(paths, columns=columns).set_index("slot_start").sort_index()
+    columns = {var: [col.format(b=b, v=variant) for b in TOWER_HEIGHTS] for var, col in TOWER_OBSERVED.items()}
+    df = store.read_paths(paths, columns=["slot_start", *sum(columns.values(), [])]).set_index("slot_start")
     df.index = df.index.tz_convert("UTC").tz_localize(None)
-    return TowerObservations(event=event, start=start, end=end, df=df.loc[start:end - INTERVAL])
+    df = df.reindex(tower_slots(event))
+    booms = pd.Index(list(TOWER_HEIGHTS), name="boom")
+    profiles = {var: df[cols].set_axis(booms, axis=1) for var, cols in columns.items()}
+    profiles["p"] *= 10.0  # kPa -> hPa
+    profiles["momt_flux"] = profiles["ustar"] ** 2
+    return TowerData(source="obs", event=event, profiles={var: profiles[var] for var in TOWER_VARIABLES
+                                                          if var in profiles}, sfc=pd.DataFrame(index=df.index))
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -120,7 +107,7 @@ class MesonetStation:
     coverage : pd.Series = field(repr=False)  # raw column -> fraction valid after QC
     excluded : list[str]  # raw columns masked for coverage below wtxmeso.qc.MIN_COVERAGE
     native : pd.DataFrame = field(repr=False)  # QC'd MESONET_COLUMNS at the native cadence
-    df : pd.DataFrame = field(repr=False)  # native resampled to INTERVAL
+    df : pd.DataFrame = field(repr=False)  # native at structs.mesonet_times
 
     @property
     def id(self) -> str:
@@ -167,24 +154,21 @@ def _standardize(raw: pd.DataFrame) -> pd.DataFrame:
     """Table 1 (wtxmeso names, source units) -> MESONET_COLUMNS."""
     df = pd.DataFrame(index=raw.index)
     df["t"] = raw["2m Temp"] + 273.15
-    df["psfc"] = raw["barometric pressure"] * 100.0
+    df["psfc"] = raw["barometric pressure"]
     e = thermo.water_partial_pressure(raw["1.5m RH"] / 100.0,
                                       thermo.saturation_vapor_pressure(raw["1.5m Temp"] + 273.15))  # kPa
-    df["q"] = thermo.water_air_mixing_ratio(e, df["psfc"] / 1000.0)
+    df["q"] = thermo.water_air_mixing_ratio(e, df["psfc"] / 10.0)
     df["u"], df["v"] = bearing_to_vector(raw["10m WS vector"].to_numpy(), raw["10m WD"].to_numpy())
     df["ws"] = raw["10m WS scalar"]
     df["wd"] = raw["10m WD"]
     return df[MESONET_COLUMNS]
 
 
-def _resample(native: pd.DataFrame, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
-    """native -> every INTERVAL from start to end (see the module docstring)."""
-    step = native.index.to_series().diff().median()
-    needed = max(1, int(np.ceil(0.5 * (INTERVAL / step))))
-    groups = native.groupby((native.index + INTERVAL / 2).floor(INTERVAL))
-    out = groups.mean().where(groups.count() >= needed)
+def _resample(native: pd.DataFrame, times: pd.DatetimeIndex) -> pd.DataFrame:
+    """native -> times (see the module docstring)."""
+    out = centred_means(native, times)
     _, out["wd"] = vector_to_bearing(out["u"].to_numpy(), out["v"].to_numpy())
-    return out.reindex(pd.date_range(start, end, freq=INTERVAL, name="time"))[MESONET_COLUMNS]
+    return out[MESONET_COLUMNS]
 
 
 def load_mesonet_data(event: str, data_dir: Path = MESONET_DIR) -> MesonetObservations:
@@ -221,7 +205,7 @@ def load_mesonet_data(event: str, data_dir: Path = MESONET_DIR) -> MesonetObserv
         native = _standardize(clean)
         stations[pfx] = MesonetStation(prefix=pfx, station=reader.station(name), raw=raw, flags=flags,
                                        coverage=coverage, excluded=excluded, native=native,
-                                       df=_resample(native, start, end))
+                                       df=_resample(native, mesonet_times(event)))
     return MesonetObservations(event=event, start=start, end=end, stations=stations, missing=sorted(missing))
 
 
@@ -230,7 +214,7 @@ if __name__ == "__main__":
         print(f"--- {event}: {' -> '.join(map(str, event_window(event)))}")
         try:
             tower = load_tower_data(event)
-            print(f"  {tower}: {len(tower.df)} slots, {tower.df.index[0]} -> {tower.df.index[-1]}")
+            print(f"  {tower}: {tower['ws'].notna().any(axis=1).sum()} slots with winds")
             meso = load_mesonet_data(event)
         except (FileNotFoundError, RuntimeError) as e:
             print(f"  {e}")

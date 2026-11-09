@@ -12,7 +12,7 @@ Usage:
     run.tower.column.u                              # tower_column.nc
 
 Winds are earth-relative (WRF rotates the time series, pack_results.py the column); wd is the direction the wind
-blows from. Times are naive UTC. Station data are read on first access and then cached.
+blows from. Times are naive UTC; pressures are in hPa. Station data are read on first access and then cached.
 """
 
 import re
@@ -30,7 +30,12 @@ from prepare_runs import TOWER
 
 RESULTS_DIR = Path(__file__).parent / "results"
 DOMAIN = "d03"
-INTERVAL = pd.Timedelta("15min")  # d03 history_interval
+
+# WRF's constants (share/module_model_constants.F)
+R_D = 287.0  # J kg-1 K-1
+CP = 7.0 * R_D / 2.0  # J kg-1 K-1
+P0 = 1000.0  # hPa
+XLV = 2.5e6  # J kg-1
 
 # .TS columns (WRF README.tslist); id, id_tsloc, ix, iy are dropped
 TS_COLUMNS = ["id", "hour", "id_tsloc", "ix", "iy",
@@ -38,7 +43,7 @@ TS_COLUMNS = ["id", "hour", "id_tsloc", "ix", "iy",
               "q",       # 2 m vapor mixing ratio (kg/kg)
               "u",       # 10 m west-east wind (m/s)
               "v",       # 10 m south-north wind (m/s)
-              "psfc",    # surface pressure (Pa)
+              "psfc",    # surface pressure (hPa; Pa in the file)
               "glw",     # downward longwave at surface (W/m2)
               "gsw",     # net shortwave at surface (W/m2)
               "hfx",     # surface sensible heat flux (W/m2)
@@ -53,6 +58,11 @@ TS_COLUMNS = ["id", "hour", "id_tsloc", "ix", "iy",
 # requested location, grid point, grid point location, terrain height, start
 HEADER_RE = re.compile(r"^(?P<long_name>.*?)\s+\d+\s+\d+\s+\S+\s+\(.*?\)\s+\(.*?\)\s+"
                        r"\(\s*(?P<lat>[-+\d.]+)\s*,\s*(?P<lon>[-+\d.]+)\s*\)\s+(?P<elev>[-+\d.]+)\s+meters\s+(?P<start>\S+)")
+
+
+def temperature(theta, p):
+    """Temperature (K) from theta (K) and p (hPa), with WRF's constants."""
+    return theta * (p / P0) ** (R_D / CP)
 
 
 def _read_numeric(path: Path, ncols: int) -> np.ndarray:
@@ -103,6 +113,7 @@ class Station:
         data = _read_numeric(self._path("TS"), len(TS_COLUMNS))
         df = pd.DataFrame(data, columns=TS_COLUMNS, index=self._times(data[:, 1]))
         df = df.drop(columns=["id", "id_tsloc", "ix", "iy"])
+        df["psfc"] /= 100.0
         df["ws"], df["wd"] = vector_to_bearing(df["u"], df["v"])
         return df
 
@@ -118,8 +129,8 @@ class Station:
 
     @cached_property
     def p(self) -> pd.DataFrame:
-        """Pressure (Pa)"""
-        return self._profile("PR")
+        """Pressure (hPa)"""
+        return self._profile("PR") / 100.0
 
     @cached_property
     def qv(self) -> pd.DataFrame:
@@ -166,7 +177,7 @@ class TowerColumn:
     u : pd.DataFrame  # west-east wind, m/s
     v : pd.DataFrame  # south-north wind, m/s
     theta : pd.DataFrame  # potential temperature, K
-    p : pd.DataFrame  # pressure, Pa
+    p : pd.DataFrame  # pressure, hPa (Pa in the file)
     qv : pd.DataFrame  # water vapor mixing ratio, kg/kg
     exch_h : pd.DataFrame  # heat exchange coefficient, m2/s (w levels; 0 at the ground)
     exch_m : pd.DataFrame  # momentum exchange coefficient, m2/s (w levels; 0 at the ground)
@@ -192,6 +203,7 @@ def load_tower_column(path: Path, acm2: bool = False) -> TowerColumn:
             else:
                 levels = pd.RangeIndex(1, data.shape[1] + 1, name=var.dimensions[1])
                 profiles[name] = pd.DataFrame(data, index=times, columns=levels)
+    profiles["p"] /= 100.0
     if acm2:
         for name in ("exch_h", "exch_m"):
             shifted = profiles[name].shift(1, axis=1)  # the top level drops off

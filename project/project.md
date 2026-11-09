@@ -102,7 +102,7 @@ Wrfout files themselves are not packed or transferred in the above.
 
 # Analysis
 ## Requirements
-- Python packages: `numpy`, `pandas`, `matplotlib`, `netcdf4`, `ttu-tower-processing`, `wtxmeso`
+- Python packages: `numpy`, `pandas`, `matplotlib`, `netcdf4`, `ttu-tower-processing`, `wtxmeso`, `ipykernel`, `cartopy`
     - `ttu-tower-processing` is available at https://github.com/Intergalactyc/ttu-tower-processing
     - `wtxmeso` is available at https://github.com/Intergalactyc/wtxmesonet
 - Data:
@@ -121,6 +121,13 @@ ttu-runall configs/tower/llj_20140122.toml
 ttu-runall configs/tower/llj_20140125.toml
 ttu-runall configs/tower/llj_20140214.toml
 ```
+
+## Analysis code
+- `load_results.py`: read the packed WRF results (station time series, tower column)
+- `load_observations.py`: read the observed tower (ttu-tower-processing runs) and mesonet (wtxmeso, with QC)
+- `transform_tower.py`, `transform_meso.py`: bring model output (and the mesonet observations) to the comparison structures
+- `structs.py`: the comparison structures shared by observations and model (`TowerData`, `MesonetPoints`), with their variables and time grids
+- `analysis.ipynb`: the analysis itself
 
 # Resources
 - [ERA5 original paper](https://rmets.onlinelibrary.wiley.com/doi/10.1002/qj.4803)
