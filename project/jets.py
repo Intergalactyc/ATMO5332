@@ -1,4 +1,4 @@
-import load_observations
+import structs
 
-def identify_lljs(tower_data: load_observations.TowerData):
+def identify_lljs(tower_data: structs.TowerData):
     pass
